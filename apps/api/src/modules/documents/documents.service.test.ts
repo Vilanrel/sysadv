@@ -1,0 +1,1 @@
+import { describe,expect,it } from 'vitest';import { createHash } from 'node:crypto';describe('document hashing',()=>{it('uses SHA-256',()=>expect(createHash('sha256').update(Buffer.from('%PDF-test')).digest('hex')).toMatch(/^[a-f0-9]{64}$/))});

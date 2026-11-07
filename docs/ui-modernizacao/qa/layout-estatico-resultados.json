@@ -1,0 +1,38 @@
+[
+  {
+    "width": 390,
+    "scrollWidth": 390,
+    "mobileMenu": "grid",
+    "cards": "grid",
+    "calendarScroll": true,
+    "ok_horizontal_page": true,
+    "ok_cards_mobile": true
+  },
+  {
+    "width": 768,
+    "scrollWidth": 768,
+    "mobileMenu": "grid",
+    "cards": "table-row",
+    "calendarScroll": false,
+    "ok_horizontal_page": true,
+    "ok_cards_mobile": true
+  },
+  {
+    "width": 1024,
+    "scrollWidth": 1024,
+    "mobileMenu": "none",
+    "cards": "table-row",
+    "calendarScroll": false,
+    "ok_horizontal_page": true,
+    "ok_cards_mobile": true
+  },
+  {
+    "width": 1440,
+    "scrollWidth": 1440,
+    "mobileMenu": "none",
+    "cards": "table-row",
+    "calendarScroll": false,
+    "ok_horizontal_page": true,
+    "ok_cards_mobile": true
+  }
+]

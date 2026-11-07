@@ -1,0 +1,2 @@
+export function canChangeAdminState(input:{targetIsAdmin:boolean;targetIsActive:boolean;activeAdminCount:number;nextStatus:'ACTIVE'|'INACTIVE'|'LOCKED'}):{allowed:boolean;code?:'LAST_ACTIVE_ADMIN'}{ if(input.targetIsAdmin&&input.targetIsActive&&input.activeAdminCount<=1&&input.nextStatus!=='ACTIVE') return {allowed:false,code:'LAST_ACTIVE_ADMIN'}; return {allowed:true}; }
+export function mustRevokeSessions(status:'ACTIVE'|'INACTIVE'|'LOCKED'){ return status==='INACTIVE'||status==='LOCKED'; }

@@ -1,0 +1,6 @@
+import { createHash, randomBytes } from 'node:crypto';
+import { prisma } from '../../db/prisma.js';
+import { hashPassword } from './password.js';
+const hash = (v:string)=>createHash('sha256').update(v).digest('hex');
+export async function requestPasswordReset(email:string){const user=await prisma.user.findFirst({where:{email:email.toLowerCase().trim(),status:{not:'INACTIVE'}}});if(!user)return {accepted:true};const token=randomBytes(32).toString('base64url');await prisma.user.update({where:{id:user.id},data:{passwordResetTokenHash:hash(token),passwordResetExpiresAt:new Date(Date.now()+15*60*1000)}});return {accepted:true,developmentToken:process.env.NODE_ENV==='development'?token:undefined};}
+export async function confirmPasswordReset(token:string,newPassword:string){const tokenHash=hash(token);const user=await prisma.user.findFirst({where:{passwordResetTokenHash:tokenHash,passwordResetExpiresAt:{gt:new Date()}}});if(!user)throw new Error('INVALID_RESET_TOKEN');await prisma.$transaction([prisma.user.update({where:{id:user.id},data:{passwordHash:await hashPassword(newPassword),passwordResetTokenHash:null,passwordResetExpiresAt:null,failedLoginAttempts:0,lockedUntil:null,status:'ACTIVE'}}),prisma.session.updateMany({where:{userId:user.id,revokedAt:null},data:{revokedAt:new Date()}})]);}

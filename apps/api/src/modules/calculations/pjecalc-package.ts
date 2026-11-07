@@ -1,0 +1,5 @@
+import { createHash } from 'node:crypto';
+function stable(value: unknown): string { if(Array.isArray(value)) return `[${value.map(stable).join(',')}]`; if(value&&typeof value==='object'){return `{${Object.entries(value as Record<string,unknown>).sort(([a],[b])=>a.localeCompare(b)).map(([k,v])=>`${JSON.stringify(k)}:${stable(v)}`).join(',')}}`;} return JSON.stringify(value); }
+export function sha256Bytes(bytes: Uint8Array){return createHash('sha256').update(bytes).digest('hex');}
+export function buildPjeCalcManifest(input:{calculationId:string;version:number;npu:string;parameters:unknown}){const payload={format:'SYSADV-PJECALC-1',calculationId:input.calculationId,version:input.version,npu:input.npu,parameters:input.parameters};return {...payload,sha256:createHash('sha256').update(stable(payload)).digest('hex')};}
+export function compareParameters(before:Record<string,unknown>,after:Record<string,unknown>){return [...new Set([...Object.keys(before),...Object.keys(after)])].sort().flatMap(field=>stable(before[field])===stable(after[field])?[]:[{field,before:before[field],after:after[field]}]);}

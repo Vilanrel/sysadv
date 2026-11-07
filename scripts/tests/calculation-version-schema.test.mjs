@@ -1,0 +1,1 @@
+import assert from 'node:assert/strict';import{readFileSync}from'node:fs';const s=readFileSync('prisma/schema.prisma','utf8');const block=s.match(/model Calculation \{[\s\S]*?\n\}/)?.[0]??'';assert.match(block,/currentVersion\s+Int\s+@default\(0\)/);console.log('calculation version schema test passed');

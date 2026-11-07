@@ -1,0 +1,1 @@
+import assert from'node:assert/strict';import{readFileSync}from'node:fs';const s=readFileSync('apps/api/src/modules/pjecalc-agent/pjecalc-agent.routes.ts','utf8');assert.match(s,/contentBase64/);assert.match(s,/importPjc/);console.log('agent result contract test passed');

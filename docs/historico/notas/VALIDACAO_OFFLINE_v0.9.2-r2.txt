@@ -1,0 +1,27 @@
+SysADV v0.9.2-r2 | Validacao da revisao do Docker Compose
+Data: 06/11/2026
+
+Origem: pacote completo v0.9.2-r1, preservado na revisao r2.
+Alteracoes sobre r1: README.md, ATUALIZAR_SISTEMA.bat.
+O compose da r1 ja estava valido; agora ha restauracao explicita no Windows.
+Adicionais: REPARAR_COMPOSE.bat, VERIFICAR_COMPOSE.bat,
+  config/docker-compose.v0.9.2-r2.yml, CORRECAO_COMPOSE_v0.9.2-r2.md,
+  SHA256_COMPOSE_v0.9.2-r2.txt.
+
+YAML: analisado por parser com chaves duplicadas proibidas. Aprovado.
+Servicos: sysadv-postgres, sysadv-api, sysadv-judicial-worker, sysadv-web.
+Volumes preservados: sysadv_postgres_data, sysadv_documents,
+  sysadv_pjecalc, sysadv_dashboard_cache.
+O bloco sysadv-judicial-worker ocorre uma unica vez.
+Arquivo local pode ser recuperado do template com backup previo.
+Instalador usa -f docker-compose.yml em todas as chamadas.
+
+Testes offline judiciais: 135 PASS, 0 FAIL.
+Analise de imports ESM: OK.
+Analise de sintaxe TypeScript/TSX: 127 arquivos, 0 erros.
+Nao foi executado docker compose config real, build Docker, Prisma,
+ou uma integracao externa ou homologacao real neste ambiente.
+Versao da API mantida: 0.9.2.
+
+O pacote nao inclui arquivo .env e nao possui backups ou dados de usuarios.
+Antes da atualizacao no Windows, faca backup do projeto e do banco.

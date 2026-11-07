@@ -1,0 +1,37 @@
+import fs from 'node:fs'; import path from 'node:path';
+const root=process.cwd();
+const checks=[
+ ['API version 0.9.0','apps/api/src/modules/system/system.routes.ts',"SYSTEM_VERSION = '0.9.0'"],
+ ['frontend version 0.9.0','apps/web/src/app/version.ts',"APP_VERSION = '0.9.0'"],
+ ['publications model','prisma/schema.prisma','model OfficialPublication'],
+ ['movement history model','prisma/schema.prisma','model ProcessMovement'],
+ ['data source model','prisma/schema.prisma','model DataSource'],
+ ['encrypted secret model','prisma/schema.prisma','model DataSourceSecret'],
+ ['source health model','prisma/schema.prisma','model DataSourceHealth'],
+ ['user security events','prisma/schema.prisma','model UserSecurityEvent'],
+ ['publication API','apps/api/src/modules/publications/publications.routes.ts',"app.get('/publications'"],
+ ['process timeline API','apps/api/src/modules/publications/publications.routes.ts',"/processes/:id/timeline"],
+ ['publication refresh API','apps/api/src/modules/publications/publications.routes.ts',"/publications/refresh"],
+ ['source management API','apps/api/src/modules/data-sources/data-sources.routes.ts',"app.get('/data-sources'"],
+ ['source test connection','apps/api/src/modules/data-sources/data-sources.routes.ts',"/:id/test"],
+ ['secret rotation API','apps/api/src/modules/data-sources/data-sources.routes.ts',"/:id/secrets"],
+ ['AES-GCM secrets','apps/api/src/modules/data-sources/secret-crypto.ts','aes-256-gcm'],
+ ['managed DataJud key','apps/api/src/modules/processes/process-integration.service.ts',"getSecretValueByCode"],
+ ['user update API','apps/api/src/modules/users/users.routes.ts',"app.patch('/users/:id'"],
+ ['user sessions API','apps/api/src/modules/users/users.routes.ts',"/users/:id/sessions"],
+ ['last admin guard','apps/api/src/modules/users/user-policy.ts','LAST_ACTIVE_ADMIN'],
+ ['publication menu','apps/web/src/layout/AppShell.tsx','Publicações'],
+ ['sources menu','apps/web/src/layout/AppShell.tsx','Fontes de Dados'],
+ ['users menu','apps/web/src/layout/AppShell.tsx','Usuários'],
+ ['publications page','apps/web/src/features/publications/PublicationsPage.tsx','Publicações Oficiais'],
+ ['sources configuration page','apps/web/src/features/integrations/DataSourcesPage.tsx','Configuração avançada'],
+ ['user management page','apps/web/src/features/admin/UsersPage.tsx','Eventos de segurança'],
+ ['timeline UI','apps/web/src/features/processes/ProcessDetailsPage.tsx','Linha do Tempo'],
+ ['update script version','ATUALIZAR_SISTEMA.bat','SysADV v0.9.0'],
+ ['update validates 0.9.0','ATUALIZAR_SISTEMA.bat',"-eq '0.9.0'"],
+ ['PJe-Calc workspace','apps/web/src/features/calculations/CalculationWorkspace.tsx','Importar .PJC'],
+ ['PJe-Calc agent','apps/api/src/modules/pjecalc-agent/pjecalc-agent.routes.ts','/pjecalc-agent/jobs/next'],
+ ['Justice watermark','apps/web/src/features/auth/LoginPage.tsx','justice-watermark'],
+ ['technical spec bundled','docs/superpowers/specs/2026-09-21-sysadv-v0.7.0-pjecalc-design.md','']
+];
+let failed=0;for(const [name,file,needle] of checks){const full=path.join(root,file);const ok=fs.existsSync(full)&&(needle===''||fs.readFileSync(full,'utf8').includes(needle));console.log(`${ok?'OK':'FAIL'} - ${name}`);if(!ok)failed++;}if(failed)process.exit(1);console.log(`Verified ${checks.length} release capabilities.`);

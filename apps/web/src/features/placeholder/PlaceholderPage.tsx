@@ -1,0 +1,1 @@
+export function PlaceholderPage({title,description}:{title:string;description:string}){return <><div className="page-heading"><div><span className="eyebrow">SysADV</span><h1>{title}</h1><p>{description}</p></div></div><section className="panel"><p className="muted">Módulo preparado para evolução nas próximas releases.</p></section></>}

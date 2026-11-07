@@ -1,0 +1,27 @@
+{
+  "name": "sysadv",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "dev": "concurrently \"npm:dev -w apps/api\" \"npm:dev -w apps/web\"",
+    "test": "npm run test -ws --if-present",
+    "build": "npm run build -w @sysadv/contracts && npm run build -w @sysadv/api && npm run build -w @sysadv/web",
+    "db:generate": "prisma generate",
+    "db:migrate": "prisma migrate dev",
+    "db:seed": "tsx prisma/seed.ts",
+    "test:esm": "node scripts/check-esm-imports.mjs",
+    "test:deadlines": "node --experimental-strip-types --test scripts/tests/deadline-engine.test.mjs"
+  },
+  "devDependencies": {
+    "concurrently": "^9.1.2",
+    "prisma": "^6.8.2",
+    "tsx": "^4.19.4",
+    "typescript": "^5.8.3"
+  },
+  "type": "module",
+  "version": "0.10.1",
+  "sysadvRelease": "2026110701"
+}

@@ -1,0 +1,268 @@
+{
+  "info": {
+    "name": "SysADV integrações judiciais modelos v1.0",
+    "description": "Documentação em 06/11/2026. Nenhuma chamada autenticada homologada. Não executar toda a coleção sem configurar fontes. Não inclui ciência, peticionamento nem ordens judiciais.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "DataJud consulta por CNJ finalidade condicionada",
+      "request": {
+        "method": "POST",
+        "url": "{{datajud_base}}/{{datajud_alias}}/_search",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          },
+          {
+            "key": "Authorization",
+            "value": "APIKey {{datajud_api_key}}"
+          }
+        ],
+        "description": "F04 F05 F06 F07. Vedação de exploração comercial. Não habilitar com finalidade incompatível. Placeholder CNJ precisa de número autorizado.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"size\": 100,\n  \"query\": {\n    \"match\": {\n      \"numeroProcesso\": \"{{numero_cnj}}\"\n    }\n  },\n  \"sort\": [\n    {\n      \"@timestamp\": {\n        \"order\": \"asc\"\n      }\n    }\n  ]\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.variables.get('uso_datajud_autorizado') !== 'true') {",
+              "  pm.execution.skipRequest();",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DJEN tribunais rota documentada",
+      "request": {
+        "method": "GET",
+        "url": "{{djen_base}}/comunicacao/tribunal",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "description": "F08 F09. Homologar contrato atual antes de uso."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.variables.get('contrato_djen_validado') !== 'true') {",
+              "  pm.execution.skipRequest();",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DJEN consulta por OAB filtros candidatos",
+      "request": {
+        "method": "GET",
+        "url": "{{djen_base}}/comunicacao?numeroOab={{oab_numero}}&ufOab={{oab_uf}}&dataDisponibilizacaoInicio={{data_inicio}}&dataDisponibilizacaoFim={{data_fim}}&pagina=1&itensPorPagina=5",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "description": "Filtros a conferir no OpenAPI vigente. Não são contrato integralmente validado nesta pesquisa. Conferir paginação, limites e inscrição com letras."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.variables.get('contrato_djen_validado') !== 'true') {",
+              "  pm.execution.skipRequest();",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "DJEN certidao por hash",
+      "request": {
+        "method": "GET",
+        "url": "{{djen_base}}/comunicacao/{{comunicacao_hash}}/certidao",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "description": "F08. Utilizar hash retornado pela fonte, verificar Content-Type e guardar o arquivo com permissão."
+      },
+      "response": [],
+      "event": [
+        {
+          "listen": "prerequest",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "if (pm.variables.get('contrato_djen_validado') !== 'true') {",
+              "  pm.execution.skipRequest();",
+              "}"
+            ]
+          }
+        }
+      ]
+    },
+    {
+      "name": "TJDFT pesquisa de jurisprudencia",
+      "request": {
+        "method": "POST",
+        "url": "https://jurisdf.tjdft.jus.br/api/v1/pesquisa",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "description": "F17. Contrato documental; validar resposta e termos antes de ativar. Página inicial zero.",
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"query\": \"dano moral\",\n  \"pagina\": 0,\n  \"tamanho\": 10\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      },
+      "response": []
+    },
+    {
+      "name": "STJ CKAN pesquisar datasets",
+      "request": {
+        "method": "GET",
+        "url": "{{stj_base}}/api/3/action/package_search?q=acordaos&rows=5",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "description": "F18 F20. Padrão CKAN a homologar no host; verificar success no corpo."
+      },
+      "response": []
+    },
+    {
+      "name": "STJ CKAN recursos do dataset",
+      "request": {
+        "method": "GET",
+        "url": "{{stj_base}}/api/3/action/package_show?id={{stj_dataset_id}}",
+        "header": [
+          {
+            "key": "Accept",
+            "value": "application/json"
+          }
+        ],
+        "description": "Usar ID retornado pelo catálogo, validar success e result.resources. Sem DataStore presumido."
+      },
+      "response": []
+    }
+  ],
+  "variable": [
+    {
+      "key": "datajud_base",
+      "value": "https://api-publica.datajud.cnj.jus.br",
+      "type": "string"
+    },
+    {
+      "key": "datajud_alias",
+      "value": "api_publica_tjsp",
+      "type": "string"
+    },
+    {
+      "key": "datajud_api_key",
+      "value": "",
+      "type": "string"
+    },
+    {
+      "key": "numero_cnj",
+      "value": "PREENCHER_NUMERO_AUTORIZADO_20_DIGITOS",
+      "type": "string"
+    },
+    {
+      "key": "uso_datajud_autorizado",
+      "value": "false",
+      "type": "string"
+    },
+    {
+      "key": "djen_base",
+      "value": "https://comunicaapi.pje.jus.br/api/v1",
+      "type": "string"
+    },
+    {
+      "key": "contrato_djen_validado",
+      "value": "false",
+      "type": "string"
+    },
+    {
+      "key": "oab_numero",
+      "value": "PREENCHER",
+      "type": "string"
+    },
+    {
+      "key": "oab_uf",
+      "value": "SP",
+      "type": "string"
+    },
+    {
+      "key": "data_inicio",
+      "value": "2026-11-03",
+      "type": "string"
+    },
+    {
+      "key": "data_fim",
+      "value": "2026-11-03",
+      "type": "string"
+    },
+    {
+      "key": "comunicacao_hash",
+      "value": "PREENCHER_HASH_RETORNADO",
+      "type": "string"
+    },
+    {
+      "key": "stj_base",
+      "value": "https://dadosabertos.web.stj.jus.br",
+      "type": "string"
+    },
+    {
+      "key": "stj_dataset_id",
+      "value": "PREENCHER_ID_RETORNADO",
+      "type": "string"
+    }
+  ]
+}

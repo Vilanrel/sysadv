@@ -1,0 +1,13 @@
+﻿ID,Entrega,Status
+INT-JUD-001,Catálogo e elegibilidade,Implementado no código; revisão jurídica pendente
+INT-JUD-002,Isolamento tenant/credencial,Implementado; DB multi-tenant pendente de teste
+INT-JUD-003,Adapter DJEN,Implementado condicional; contrato/páginas HML pendentes
+INT-JUD-004,Idempotência e versões,Implementado; concorrência DB pendente
+INT-JUD-005,Monitoramento OAB,Filtros implementados; cobertura real pendente
+INT-JUD-006,Prazo revisável,Não implementado
+INT-JUD-007,Adapter DataJud condicionado,Consulta manual bloqueada por padrão; somente uso não comercial autorizado
+INT-JUD-008,Domicílio segregado,Não implementado; bloqueado
+INT-JUD-009,Jurisprudência,TJDFT e metadados CKAN STJ implementados; homologação pendente
+INT-JUD-010,Operação e observabilidade,"Jobs, estados, métricas e quarentena implementados; alerta externo pendente"
+INT-JUD-011,MNI por tribunal,Não implementado; WSDL/credenciamento pendente
+INT-JUD-012,TPU versionada,Não implementado; catálogo referenciado

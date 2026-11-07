@@ -1,0 +1,1 @@
+const map={OFFICIAL:['●','Oficial'],AI:['◆','IA'],MANUAL:['✎','Manual'],VALIDATED:['✓','Validado'],DIVERGENCE:['!','Divergência'],PENDING:['○','Pendente']} as const; export function OriginStatusBadge({kind}:{kind:keyof typeof map}){const [icon,label]=map[kind];return <span className={`badge badge-${kind.toLowerCase()}`} title={label}><span aria-hidden>{icon}</span>{label}</span>}

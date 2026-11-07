@@ -1,0 +1,128 @@
+﻿# Homologacao isolada, sem utilizar o compose nem os volumes do SysADV instalado.
+# Execucao: powershell -NoProfile -ExecutionPolicy Bypass -File .\HOMOLOGAR_COMPLETO.ps1
+[CmdletBinding()]
+param([switch]$PreservarAmbienteQA)
+$ErrorActionPreference = 'Stop'
+Set-Location $PSScriptRoot
+$root = $PSScriptRoot
+$evidences = Join-Path $root 'qa_evidencias'
+New-Item -ItemType Directory -Path $evidences -Force | Out-Null
+$runName = Get-Date -Format 'yyyyMMdd_HHmmss'
+$runFolder = Join-Path $evidences $runName
+New-Item -ItemType Directory -Path $runFolder -Force | Out-Null
+$project = 'sysadvqa' + (Get-Date -Format 'MMddHHmmss')
+$compose = @('compose','-p',$project,'-f',(Join-Path $root 'docker-compose.qa.yml'))
+$result = [ordered]@{ status = 'failed'; project = $project; executedAt = (Get-Date).ToString('o'); sourceFingerprint = ''; stages = [ordered]@{compose='pending';build='pending';prisma='pending';postgresql='pending';restore='pending';worker='pending';browser='pending'}; evidenceDirectory = $runFolder; reason = '' }
+
+function Get-SourceFingerprint {
+  $items = @('apps','packages','prisma','scripts','tests','package.json','config/release.json','config/release-history.json','.dockerignore','docker-compose.yml','docker-compose.qa.yml','playwright.config.ts','HOMOLOGAR_COMPLETO.ps1','IMPLANTAR_APOS_HOMOLOGACAO.ps1')
+  $fileList = foreach ($item in $items) {
+    $p = Join-Path $root $item
+    if (Test-Path $p -PathType Container) { Get-ChildItem -LiteralPath $p -Recurse -File | Where-Object { $_.FullName -notmatch '[\\/](node_modules|dist|qa_evidencias|\.git)[\\/]' } }
+    elseif (Test-Path $p -PathType Leaf) { Get-Item -LiteralPath $p }
+  }
+  $parts = foreach ($file in ($fileList | Sort-Object FullName)) {
+    $rel = $file.FullName.Substring($root.Length).Replace('\\','/')
+    $sha = (Get-FileHash -Algorithm SHA256 -LiteralPath $file.FullName).Hash
+    "${rel}:${sha}"
+  }
+  $data = [Text.Encoding]::UTF8.GetBytes(($parts -join "`n"))
+  $h = [Security.Cryptography.SHA256]::Create()
+  try { return -join ($h.ComputeHash($data) | ForEach-Object { $_.ToString('x2') }) }
+  finally { $h.Dispose() }
+}
+# Docker Compose emite progresso em stderr. No PowerShell 5.1, com
+# ErrorActionPreference=Stop e 2>&1 isso vira NativeCommandError mesmo
+# quando o processo ainda esta compilando. Nunca decidir sucesso por texto.
+function Invoke-QACompose {
+  param([string[]]$CommandArgs, [string]$LogFile)
+  $path = Join-Path $runFolder $LogFile
+  $previousPreference = $ErrorActionPreference
+  $exitCode = $null
+  try {
+    # A tolerancia vale SOMENTE para o stderr do comando nativo. O exit code
+    # continua obrigatorio, e os erros PowerShell voltam a usar Stop ao sair.
+    $ErrorActionPreference = 'Continue'
+    & docker @compose @CommandArgs 2>&1 |
+      ForEach-Object {
+        if ($_ -is [System.Management.Automation.ErrorRecord]) { $_.ToString() }
+        else { [string]$_ }
+      } | Tee-Object -FilePath $path | Out-Host
+    $exitCode = $LASTEXITCODE
+  } finally {
+    $ErrorActionPreference = $previousPreference
+  }
+  if ($null -eq $exitCode) { throw "O Docker nao retornou codigo de saida; verifique $path" }
+  return [int]$exitCode
+}
+function Invoke-DockerStep {
+  param([string]$Label,[string]$Stage,[string[]]$Arguments)
+  Write-Host "`n[QA] $Label" -ForegroundColor Cyan
+  $code = Invoke-QACompose -CommandArgs $Arguments -LogFile ($Stage + '.log')
+  if ($code -ne 0) {
+    throw "$Label falhou com codigo REAL $code. Consulte $(Join-Path $runFolder ($Stage + '.log'))"
+  }
+  $result.stages[$Stage] = 'passed'
+}
+$hasStarted = $false
+try {
+  $result.sourceFingerprint = Get-SourceFingerprint
+  $previousPreference = $ErrorActionPreference
+  try {
+    $ErrorActionPreference = 'Continue'
+    & docker version 2>&1 | Out-Null
+    $engineExit = $LASTEXITCODE
+  } finally { $ErrorActionPreference = $previousPreference }
+  if ($engineExit -ne 0) { throw 'Docker Desktop Engine indisponivel; nao houve compilacao nem alteracao dos dados.' }
+  $env:SYSADV_QA_ACCESS_SECRET = 'qa_access_' + [Guid]::NewGuid().ToString('N')
+  $env:SYSADV_QA_REFRESH_SECRET = 'qa_refresh_' + [Guid]::NewGuid().ToString('N')
+  $env:SYSADV_QA_ADMIN_PASSWORD = 'Qa!-' + [Guid]::NewGuid().ToString('N') + 'Aa9'
+  Invoke-DockerStep 'Validando Compose QA separado' 'compose' @('config','--quiet')
+  Invoke-DockerStep 'Compilando imagens API, Web e navegador de testes' 'build' @('--progress','plain','--profile','e2e','build','sysadv-api','sysadv-web','sysadv-e2e')
+  $hasStarted = $true
+  Write-Host '[QA] Iniciando PostgreSQL exclusivo de homologacao...'
+  $qaExit = Invoke-QACompose -CommandArgs @('up','-d','--wait','--wait-timeout','180','sysadv-postgres') -LogFile 'postgres-startup.log'
+  if ($qaExit -ne 0) { throw 'Nao foi possivel iniciar o PostgreSQL QA isolado (exit code ' + [string]$qaExit + ')' }
+  $qaExit = Invoke-QACompose -CommandArgs @('run','--rm','--no-deps','sysadv-api','npx','prisma','validate') -LogFile 'prisma-validate.log'
+  if ($qaExit -ne 0) { throw 'Falha: prisma validate (veja prisma-validate.log) (exit code ' + [string]$qaExit + ')' }
+  $qaExit = Invoke-QACompose -CommandArgs @('run','--rm','--no-deps','sysadv-api','npx','prisma','db','push') -LogFile 'prisma-schema.log'
+  if ($qaExit -ne 0) { throw 'Falha: prisma db push na base QA isolada (exit code ' + [string]$qaExit + ')' }
+  $qaExit = Invoke-QACompose -CommandArgs @('run','--rm','--no-deps','sysadv-api','npm','run','db:seed') -LogFile 'prisma-seed.log'
+  if ($qaExit -ne 0) { throw 'Falha: seed na base QA isolada (exit code ' + [string]$qaExit + ')' }
+  $result.stages.prisma = 'passed'
+  $qaExit = Invoke-QACompose -CommandArgs @('run','--rm','--no-deps','sysadv-api','sh','-ec','test -s /app/apps/api/dist/workers/judicial-worker.js') -LogFile 'worker-artifact.log'
+  if ($qaExit -ne 0) { throw 'Worker judicial nao foi compilado para dist/ (exit code ' + [string]$qaExit + ')' }
+  $result.stages.worker = 'passed'
+  $qaExit = Invoke-QACompose -CommandArgs @('up','-d','--wait','--wait-timeout','180','sysadv-api','sysadv-web') -LogFile 'startup.log'
+  if ($qaExit -ne 0) { throw 'API/Web nao alcancaram estado healthy (exit code ' + [string]$qaExit + ')' }
+  $qaExit = Invoke-QACompose -CommandArgs @('exec','-T','sysadv-api','node','scripts/qa/api-acceptance.mjs') -LogFile 'api-postgresql.log'
+  if ($qaExit -ne 0) { throw 'Testes de API e PostgreSQL falharam (exit code ' + [string]$qaExit + ')' }
+  $result.stages.postgresql = 'passed'
+  # Prova de restauracao do arquivo custom do PostgreSQL em outro banco QA, nunca no banco principal.
+  $restoreCmd = 'set -eu; pg_dump -U sysadv_qa -d sysadv_qa -Fc -f /tmp/sysadv_qa.dump; test -s /tmp/sysadv_qa.dump; pg_restore -l /tmp/sysadv_qa.dump >/dev/null; createdb -U sysadv_qa sysadv_qa_restore; pg_restore -U sysadv_qa -d sysadv_qa_restore --no-owner /tmp/sysadv_qa.dump; psql -U sysadv_qa -d sysadv_qa_restore -tAc "select count(*) from information_schema.tables where table_schema = ''public''"'
+  $qaExit = Invoke-QACompose -CommandArgs @('exec','-T','sysadv-postgres','sh','-ec',$restoreCmd) -LogFile 'pg-backup-restore.log'
+  if ($qaExit -ne 0) { throw 'Teste de backup e restauracao do PostgreSQL QA falhou (exit code ' + [string]$qaExit + ')' }
+  $result.stages.restore = 'passed'
+  $qaExit = Invoke-QACompose -CommandArgs @('--profile','e2e','run','--rm','sysadv-e2e') -LogFile 'playwright.log'
+  if ($qaExit -ne 0) { throw 'Homologacao automatizada de telas falhou (exit code ' + [string]$qaExit + ')' }
+  $result.stages.browser = 'passed'
+  $result.status = 'passed'
+  Write-Host "[QA OK] Build, PostgreSQL, API e telas passaram. Evidencias: $runFolder" -ForegroundColor Green
+} catch {
+  $result.reason = $_.Exception.Message
+  Write-Host "[QA REPROVADA] $($result.reason)" -ForegroundColor Red
+} finally {
+  $result['endedAt'] = (Get-Date).ToString('o')
+  $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $evidences 'ULTIMO_RESULTADO.json') -Encoding UTF8
+  $result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $runFolder 'resultado.json') -Encoding UTF8
+  if (-not $PreservarAmbienteQA -and $hasStarted) {
+    Write-Host '[QA] Encerrando ambiente descartavel e removendo somente seu volume QA...'
+    $cleanupExit = Invoke-QACompose -CommandArgs @('down','--volumes','--remove-orphans') -LogFile 'cleanup.log'
+    if ($cleanupExit -ne 0) { Write-Warning 'Falhou limpeza QA; o volume de producao NAO foi tocado.' }
+  }
+  Remove-Item Env:SYSADV_QA_ACCESS_SECRET -ErrorAction SilentlyContinue
+  Remove-Item Env:SYSADV_QA_REFRESH_SECRET -ErrorAction SilentlyContinue
+  Remove-Item Env:SYSADV_QA_ADMIN_PASSWORD -ErrorAction SilentlyContinue
+}
+if ($result.status -ne 'passed') { exit 1 }
+exit 0

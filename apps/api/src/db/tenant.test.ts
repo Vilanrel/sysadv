@@ -1,0 +1,1 @@
+import { describe,expect,it } from 'vitest'; import { assertSameOrganization } from './tenant.js'; describe('assertSameOrganization',()=>{it('rejects cross-organization access',()=>expect(()=>assertSameOrganization('org-a','org-b')).toThrow('FORBIDDEN'))});

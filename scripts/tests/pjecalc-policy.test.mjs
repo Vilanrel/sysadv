@@ -1,0 +1,10 @@
+import assert from 'node:assert/strict';
+import { assertCanGeneratePackage, assertPjcImport, canTransitionCalculation } from '../../apps/api/src/modules/calculations/pjecalc-policy.ts';
+assert.throws(()=>assertCanGeneratePackage('DRAFT'), /CALCULATION_NOT_VALIDATED/);
+assert.doesNotThrow(()=>assertCanGeneratePackage('VALIDATED'));
+assert.throws(()=>assertPjcImport('resultado.pdf', Buffer.from('x')), /INVALID_PJC_FILE/);
+assert.throws(()=>assertPjcImport('resultado.pjc', Buffer.alloc(0)), /EMPTY_PJC_FILE/);
+assert.doesNotThrow(()=>assertPjcImport('resultado.PJC', Buffer.from('x')));
+assert.equal(canTransitionCalculation('DRAFT','READY_FOR_REVIEW'), true);
+assert.equal(canTransitionCalculation('DRAFT','COMPLETED'), false);
+console.log('policy tests passed');

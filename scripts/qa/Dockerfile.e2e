@@ -1,0 +1,9 @@
+FROM mcr.microsoft.com/playwright:v1.52.0-noble
+WORKDIR /workspace
+COPY package*.json ./
+COPY apps/api/package.json apps/api/package.json
+COPY apps/web/package.json apps/web/package.json
+COPY packages/contracts/package.json packages/contracts/package.json
+RUN npm install --no-audit --no-fund
+COPY . .
+CMD ["npx", "playwright", "test", "tests/e2e/office-acceptance.spec.ts", "tests/e2e/auth.spec.ts", "--reporter=line,junit,html"]

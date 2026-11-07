@@ -1,0 +1,1 @@
+import { describe,expect,it } from 'vitest';import { buildApp } from './app.js';describe('app',()=>{it('returns a request id and health status',async()=>{const app=await buildApp();const response=await app.inject({method:'GET',url:'/api/health'});expect(response.headers['x-request-id']).toBeTruthy();expect(response.json()).toEqual({status:'ok'});await app.close()})});

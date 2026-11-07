@@ -1,0 +1,431 @@
+{
+  "info": {
+    "name": "SysADV v0.9.2 - Rotas Internas Judiciais (Homologação)",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+    "description": "Exemplos internos. Nunca habilitar DJEN/DataJud sem contrato e autorização. Não executar collection inteira."
+  },
+  "variable": [
+    {
+      "key": "sysadv_base_url",
+      "value": "http://localhost:3001"
+    },
+    {
+      "key": "sysadv_access_token",
+      "value": "CONFIGURAR_TOKEN_LOCALMENTE"
+    },
+    {
+      "key": "conexao_id",
+      "value": "PREENCHER"
+    },
+    {
+      "key": "job_id",
+      "value": "PREENCHER"
+    },
+    {
+      "key": "publicacao_id",
+      "value": "PREENCHER"
+    },
+    {
+      "key": "comunicacao_id",
+      "value": "PREENCHER"
+    }
+  ],
+  "item": [
+    {
+      "name": "Listar fontes",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{sysadv_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{sysadv_base_url}}/api/integracoes/fontes",
+          "host": [
+            "{{sysadv_base_url}}"
+          ],
+          "path": [
+            "api",
+            "integracoes",
+            "fontes"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Listar tribunais",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{sysadv_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{sysadv_base_url}}/api/integracoes/tribunais",
+          "host": [
+            "{{sysadv_base_url}}"
+          ],
+          "path": [
+            "api",
+            "integracoes",
+            "tribunais"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Criar conexão pendente DJEN",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{sysadv_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{sysadv_base_url}}/api/integracoes/conexoes",
+          "host": [
+            "{{sysadv_base_url}}"
+          ],
+          "path": [
+            "api",
+            "integracoes",
+            "conexoes"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"sourceCode\": \"DJEN\",\n  \"environment\": \"HOMOLOGATION\",\n  \"purpose\": \"Monitoramento autorizado de publicações\",\n  \"config\": {\n    \"itemsPath\": \"items\",\n    \"totalPath\": \"totalPages\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Ativar conexão após revisão de contrato",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{sysadv_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{sysadv_base_url}}/api/integracoes/conexoes/{{conexao_id}}/ativar",
+          "host": [
+            "{{sysadv_base_url}}"
+          ],
+          "path": [
+            "api",
+            "integracoes",
+            "conexoes",
+            "{{conexao_id}}",
+            "ativar"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"termsAccepted\": true,\n  \"legalBasis\": \"Preencher base juridica aplicavel\",\n  \"authorizationReference\": \"Preencher referencia da autorizacao\",\n  \"contractHash\": \"0000000000000000000000000000000000000000000000000000000000000000\",\n  \"config\": {\n    \"itemsPath\": \"items\",\n    \"totalPath\": \"totalPages\"\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Enfileirar job DJEN",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{sysadv_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{sysadv_base_url}}/api/integracoes/sincronizacoes",
+          "host": [
+            "{{sysadv_base_url}}"
+          ],
+          "path": [
+            "api",
+            "integracoes",
+            "sincronizacoes"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"connectionId\": \"{{conexao_id}}\",\n  \"filters\": {\n    \"from\": \"2026-11-05\",\n    \"to\": \"2026-11-06\",\n    \"oabNumber\": \"12345A\",\n    \"oabState\": \"SP\",\n    \"pageSize\": 20\n  }\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Consultar job",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{sysadv_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{sysadv_base_url}}/api/integracoes/jobs/{{job_id}}",
+          "host": [
+            "{{sysadv_base_url}}"
+          ],
+          "path": [
+            "api",
+            "integracoes",
+            "jobs",
+            "{{job_id}}"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Publicações para triagem",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{sysadv_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{sysadv_base_url}}/api/integracoes/triagem",
+          "host": [
+            "{{sysadv_base_url}}"
+          ],
+          "path": [
+            "api",
+            "integracoes",
+            "triagem"
+          ]
+        }
+      }
+    },
+    {
+      "name": "Consultar jurisprudência TJDFT",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{sysadv_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{sysadv_base_url}}/api/integracoes/jurisprudencia/tjdft/pesquisar",
+          "host": [
+            "{{sysadv_base_url}}"
+          ],
+          "path": [
+            "api",
+            "integracoes",
+            "jurisprudencia",
+            "tjdft",
+            "pesquisar"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"connectionId\": \"{{conexao_id}}\",\n  \"query\": \"dano moral\",\n  \"pagina\": 0,\n  \"tamanho\": 10\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Pesquisar catálogo STJ",
+      "request": {
+        "method": "GET",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{sysadv_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{sysadv_base_url}}/api/integracoes/stj/catalogo?connectionId={{conexao_id}}&q=acordaos&rows=10",
+          "host": [
+            "{{sysadv_base_url}}"
+          ],
+          "path": [
+            "api",
+            "integracoes",
+            "stj",
+            "catalogo"
+          ]
+        }
+      }
+    },
+    {
+      "name": "DataJud — somente se autorizado e NÃO comercial",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{sysadv_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{sysadv_base_url}}/api/integracoes/datajud/consultar",
+          "host": [
+            "{{sysadv_base_url}}"
+          ],
+          "path": [
+            "api",
+            "integracoes",
+            "datajud",
+            "consultar"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"connectionId\": \"{{conexao_id}}\",\n  \"npu\": \"1051528-57.2024.8.26.0053\"\n}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Leitura INTERNA — não gera ciência",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{sysadv_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{sysadv_base_url}}/api/publicacoes/{{publicacao_id}}/leitura",
+          "host": [
+            "{{sysadv_base_url}}"
+          ],
+          "path": [
+            "api",
+            "publicacoes",
+            "{{publicacao_id}}",
+            "leitura"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    },
+    {
+      "name": "Ciência oficial — BLOQUEADA",
+      "request": {
+        "method": "POST",
+        "header": [
+          {
+            "key": "Authorization",
+            "value": "Bearer {{sysadv_access_token}}"
+          },
+          {
+            "key": "Content-Type",
+            "value": "application/json"
+          }
+        ],
+        "url": {
+          "raw": "{{sysadv_base_url}}/api/comunicacoes/{{comunicacao_id}}/ciencia",
+          "host": [
+            "{{sysadv_base_url}}"
+          ],
+          "path": [
+            "api",
+            "comunicacoes",
+            "{{comunicacao_id}}",
+            "ciencia"
+          ]
+        },
+        "body": {
+          "mode": "raw",
+          "raw": "{}",
+          "options": {
+            "raw": {
+              "language": "json"
+            }
+          }
+        }
+      }
+    }
+  ]
+}

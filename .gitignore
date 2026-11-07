@@ -1,0 +1,14 @@
+.worktrees/
+node_modules/
+.env
+dist/
+coverage/
+playwright-report/
+test-results/
+.worktrees/
+
+.worktrees/
+
+.superpowers/
+
+config/release-history.local.json

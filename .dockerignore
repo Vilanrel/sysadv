@@ -1,0 +1,24 @@
+# Nunca incluir credenciais, arquivos reais de clientes ou backups em imagens.
+.env
+.env.*
+!.env.example
+.git
+.gitignore
+**/node_modules
+**/dist
+**/.vite
+**/coverage
+backups
+qa_evidencias
+*.dump
+*.sql.gz
+*.db
+*.sqlite
+*.sqlite3
+*.pem
+*.p12
+*.pfx
+*.key
+.DS_Store
+
+config/release-history.local.json

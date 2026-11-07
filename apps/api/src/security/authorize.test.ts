@@ -1,0 +1,1 @@
+import { describe,expect,it } from 'vitest';import { hasPermission } from './authorize.js';describe('hasPermission',()=>{it('denies a viewer from user.manage',()=>expect(hasPermission(['process.read'],'user.manage')).toBe(false));it('allows configured permission',()=>expect(hasPermission(['user.manage'],'user.manage')).toBe(true))});

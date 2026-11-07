@@ -1,0 +1,51 @@
+{
+  "data_pesquisa": "2026-11-06",
+  "natureza": "Catálogo documental. Sem testes autenticados ou garantia de disponibilidade.",
+  "fontes": [
+    {
+      "codigo": "DATAJUD",
+      "contrato": "documentado",
+      "acesso": "chave publica",
+      "uso_comercial": "vedado",
+      "default_enabled": false
+    },
+    {
+      "codigo": "DJEN",
+      "contrato": "rotas documentadas; filtros e schema pendentes",
+      "default_enabled": false
+    },
+    {
+      "codigo": "TJDFT_JURISDF",
+      "contrato": "PDF oficial",
+      "homologacao": "pendente",
+      "default_enabled": false
+    },
+    {
+      "codigo": "STJ_CKAN",
+      "contrato": "padrão CKAN e catálogo oficial",
+      "homologacao": "pendente",
+      "default_enabled": false
+    },
+    {
+      "codigo": "DOMICILIO",
+      "contrato": "obter contrato atual após habilitação",
+      "science_enabled": false,
+      "default_enabled": false
+    },
+    {
+      "codigo": "DATALAKE_CNJ",
+      "contrato": "condicionado à aprovação GeCli",
+      "default_enabled": false
+    },
+    {
+      "codigo": "MNI",
+      "contrato": "WSDL por tribunal e ambiente",
+      "default_enabled": false
+    },
+    {
+      "codigo": "OAB_CNA",
+      "contrato": "SOAP oficial; credenciamento pendente",
+      "default_enabled": false
+    }
+  ]
+}

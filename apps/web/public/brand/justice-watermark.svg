@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 500 500" role="img" aria-label="Balança da Justiça decorativa">
+  <g fill="none" stroke="#6c50ac" stroke-width="12" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M250 72v290M142 144h216M105 177h290M142 144 88 262M142 144l54 118M358 144l-54 118M358 144l54 118"/>
+    <path d="M61 262h81c0 40-18 61-40 61s-41-21-41-61ZM358 262h81c0 40-18 61-40 61s-41-21-41-61ZM187 385h126M143 422h214"/>
+  </g>
+  <circle cx="250" cy="70" r="18" fill="#6c50ac"/>
+</svg>

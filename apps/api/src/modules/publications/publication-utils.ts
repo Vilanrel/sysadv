@@ -1,0 +1,4 @@
+export type TimelineItem = { type: 'MOVEMENT' | 'PUBLICATION'; date?: string | null; label: string; [key: string]: unknown };
+function fnv1a64(value: string): string { let hash=0xcbf29ce484222325n; const prime=0x100000001b3n; for(const c of value){ hash^=BigInt(c.codePointAt(0) ?? 0); hash=BigInt.asUintN(64,hash*prime); } return hash.toString(16).padStart(16,'0'); }
+export function createPublicationFingerprint(input:{npu:string;sourceCode:string;externalId?:string|null;content:string;publishedAt?:string|null}){ const identity=input.externalId?.trim() ? `id:${input.externalId.trim()}` : `body:${input.publishedAt ?? ''}:${input.content.trim().replace(/\s+/g,' ').slice(0,4000)}`; return `${input.sourceCode}:${fnv1a64(`${input.npu}|${identity}`)}`; }
+export function mergeTimelineItems(movements:TimelineItem[],publications:TimelineItem[]):TimelineItem[]{ return [...movements,...publications].sort((a,b)=>new Date(b.date ?? 0).getTime()-new Date(a.date ?? 0).getTime()); }

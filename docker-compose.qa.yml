@@ -1,0 +1,77 @@
+# SysADV: ambiente de homologacao TOTALMENTE separado do compose de producao.
+# Use somente com HOMOLOGAR_COMPLETO.ps1; nao liga nem reutiliza volumes oficiais.
+services:
+  sysadv-postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sysadv_qa
+      POSTGRES_USER: sysadv_qa
+      POSTGRES_PASSWORD: local_qa_database_only
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sysadv_qa -d sysadv_qa"]
+      interval: 3s
+      timeout: 3s
+      retries: 25
+    volumes:
+      - qa_postgres:/var/lib/postgresql/data
+  sysadv-api:
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    environment:
+      NODE_ENV: test
+      PORT: '3001'
+      DATABASE_URL: 'postgresql://sysadv_qa:local_qa_database_only@sysadv-postgres:5432/sysadv_qa?schema=public'
+      ACCESS_TOKEN_SECRET: ${SYSADV_QA_ACCESS_SECRET:?Execute HOMOLOGAR_COMPLETO.ps1}
+      REFRESH_TOKEN_SECRET: ${SYSADV_QA_REFRESH_SECRET:?Execute HOMOLOGAR_COMPLETO.ps1}
+      SEED_ADMIN_PASSWORD: ${SYSADV_QA_ADMIN_PASSWORD:?Execute HOMOLOGAR_COMPLETO.ps1}
+      WEB_ORIGIN: 'http://localhost:19080'
+      DOCUMENT_STORAGE_PATH: '/tmp/sysadv-qa-documents'
+      PJECALC_STORAGE_DIR: '/tmp/sysadv-qa-pjecalc'
+      DASHBOARD_CACHE_DIR: '/tmp/sysadv-qa-dashboard'
+      JUDICIAL_DATAJUD_NONCOMMERCIAL_ENABLED: 'false'
+      JUDICIAL_DJEN_CONTRACT_VALIDATED: 'false'
+    depends_on:
+      sysadv-postgres:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:19081:3001'
+    healthcheck:
+      test: ['CMD', 'node', '-e', "fetch('http://127.0.0.1:3001/api/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"]
+      interval: 5s
+      timeout: 4s
+      retries: 25
+  sysadv-web:
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    depends_on:
+      sysadv-api:
+        condition: service_healthy
+    ports:
+      - '127.0.0.1:19080:80'
+    healthcheck:
+      test: ['CMD-SHELL', 'wget -q -O /dev/null http://127.0.0.1/ || exit 1']
+      interval: 5s
+      timeout: 4s
+      retries: 25
+  sysadv-e2e:
+    build:
+      context: .
+      dockerfile: scripts/qa/Dockerfile.e2e
+    environment:
+      BASE_URL: 'http://sysadv-web'
+      QA_SCREENSHOT_DIR: '/evidencias/telas'
+      TEST_ADMIN_EMAIL: 'admin@sysadv.local'
+      TEST_ADMIN_PASSWORD: ${SYSADV_QA_ADMIN_PASSWORD:?Execute HOMOLOGAR_COMPLETO.ps1}
+      CI: '1'
+      PLAYWRIGHT_JUNIT_OUTPUT_NAME: '/evidencias/playwright-junit.xml'
+      PLAYWRIGHT_HTML_OUTPUT_DIR: '/evidencias/playwright-html'
+    volumes:
+      - ./qa_evidencias:/evidencias
+    depends_on:
+      sysadv-web:
+        condition: service_healthy
+    profiles: ['e2e']
+volumes:
+  qa_postgres:

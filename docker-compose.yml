@@ -1,0 +1,71 @@
+name: sysadv
+
+services:
+  sysadv-postgres:
+    container_name: sysadv-db
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: sysadv
+      POSTGRES_USER: sysadv
+      POSTGRES_PASSWORD: ${SYSADV_DB_PASSWORD:-sysadv_dev}
+    volumes:
+      - sysadv_postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sysadv -d sysadv"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  sysadv-api:
+    container_name: sysadv-api
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: ${SYSADV_DATABASE_URL:-postgresql://sysadv:sysadv_dev@sysadv-postgres:5432/sysadv?schema=public}
+      DOCUMENT_STORAGE_PATH: /data/documents
+      PJECALC_STORAGE_DIR: /data/pjecalc
+      DASHBOARD_CACHE_DIR: /data/dashboard-cache
+    depends_on:
+      sysadv-postgres:
+        condition: service_healthy
+    volumes:
+      - sysadv_documents:/data/documents
+      - sysadv_pjecalc:/data/pjecalc
+      - sysadv_dashboard_cache:/data/dashboard-cache
+    ports:
+      - "3001:3001"
+    restart: unless-stopped
+
+  sysadv-judicial-worker:
+    container_name: ssysadv-judicial-worker
+    build:
+      context: .
+      dockerfile: apps/api/Dockerfile
+    env_file: .env
+    environment:
+      DATABASE_URL: ${SYSADV_DATABASE_URL:-postgresql://sysadv:sysadv_dev@sysadv-postgres:5432/sysadv?schema=public}
+    command: ["node", "apps/api/dist/workers/judicial-worker.js"]
+    depends_on:
+      sysadv-postgres:
+        condition: service_healthy
+    restart: unless-stopped
+
+  sysadv-web:
+    container_name: sysadv-web
+    build:
+      context: .
+      dockerfile: apps/web/Dockerfile
+    depends_on:
+      - sysadv-api
+    ports:
+      - "${SYSADV_WEB_PORT:-9080}:80"
+    restart: unless-stopped
+
+volumes:
+  sysadv_postgres_data:
+  sysadv_documents:
+  sysadv_pjecalc:
+  sysadv_dashboard_cache:

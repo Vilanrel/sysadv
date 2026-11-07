@@ -1,0 +1,1 @@
+import { describe,expect,it } from 'vitest';import { isValidNpu } from './npu.js';describe('NPU',()=>{it('accepts a CNJ-formatted NPU',()=>expect(isValidNpu('0001234-56.2025.5.02.0030')).toBe(true));it('rejects malformed values',()=>expect(isValidNpu('123')).toBe(false))});
