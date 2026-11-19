@@ -20,6 +20,7 @@ const ProcessDetailsPage = page(() => import('../features/processes/ProcessDetai
 const EditProcessPage = page(() => import('../features/processes/EditProcessPage'), 'EditProcessPage');
 const PublicationsPage = page(() => import('../features/publications/PublicationsPage'), 'PublicationsPage');
 const PeoplePage = page(() => import('../features/people/PeoplePage'), 'PeoplePage');
+const LegalAiPage = page(() => import('../features/legal-ai/LegalAiPage'), 'LegalAiPage');
 const IntakesPage = page(() => import('../features/office/IntakesPage'), 'IntakesPage');
 const TasksPage = page(() => import('../features/tasks/TasksPage'), 'TasksPage');
 const KanbanPage = page(() => import('../features/tasks/KanbanPage'), 'KanbanPage');
@@ -62,6 +63,7 @@ export const router = createBrowserRouter([
     {path:'settings',element:<SettingsPage/>},
     {path:'documents',element:<DocumentsPage/>},
     {path:'templates',element:<DocumentTemplatesPage/>},
+    {path:'legal-ai',element:<LegalAiPage/>},
     {path:'calculations',element:<CalculationsPage/>},
     {path:'calculations/:id',element:<CalculationWorkspace/>},
     {path:'sources',element:<DataSourcesPage/>},
