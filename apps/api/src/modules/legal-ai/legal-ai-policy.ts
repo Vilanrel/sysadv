@@ -2,6 +2,7 @@ import { z } from 'zod';
 
 export const legalDraftInput = z.object({
   action: z.enum(['DRAFT', 'REVIEW', 'OUTLINE']),
+  approvedForExternalProvider: z.literal(true),
   practiceArea: z.string().trim().min(2).max(100),
   instructions: z.string().trim().min(20).max(12000),
   referenceText: z.string().trim().max(16000).optional().default(''),
