@@ -17,11 +17,32 @@ export async function intakesRoutes(app:FastifyInstance) {
     const {page,take,skip}=pagination(req.query);
     const q=String(req.query?.q??'').slice(0,100).trim();
     const status=String(req.query?.status??'');
+    const followUp=String(req.query?.followUp??'').toUpperCase();
+    const now=new Date();
     const where:Prisma.OfficeIntakeWhereInput={organizationId:org};
     if(['NEW','IN_PROGRESS','WAITING_CLIENT','CONVERTED','CLOSED'].includes(status))where.status=status as any;
+    if(followUp==='OVERDUE'||followUp==='UPCOMING'||followUp==='UNSCHEDULED'){
+      where.status={in:['NEW','IN_PROGRESS','WAITING_CLIENT']};
+      if(followUp==='OVERDUE')where.nextContactAt={lt:now};
+      if(followUp==='UPCOMING')where.nextContactAt={gte:now};
+      if(followUp==='UNSCHEDULED')where.nextContactAt=null;
+    }
     if(q)where.OR=[{subject:{contains:q,mode:'insensitive'}},{client:{name:{contains:q,mode:'insensitive'}}},{process:{npu:{contains:q}}}];
     const [items,total]=await Promise.all([prisma.officeIntake.findMany({where,orderBy:{occurredAt:'desc'},include:relations,skip,take}),prisma.officeIntake.count({where})]);
     return {items,total,page,pageSize:take};
+  });
+  // Indicadores do CRM obtidos dos atendimentos existentes (sem duplicar entidades).
+  app.get('/intakes/summary',{preHandler:[authenticate,requirePermission('intake.read')]},async(req:any)=>{
+    const organizationId=req.auth.organizationId as string;
+    const now=new Date();
+    const active={organizationId,status:{in:['NEW','IN_PROGRESS','WAITING_CLIENT'] as const}};
+    const [overdue,upcoming,unscheduled,converted]=await Promise.all([
+      prisma.officeIntake.count({where:{...active,nextContactAt:{lt:now}}}),
+      prisma.officeIntake.count({where:{...active,nextContactAt:{gte:now}}}),
+      prisma.officeIntake.count({where:{...active,nextContactAt:null}}),
+      prisma.officeIntake.count({where:{organizationId,status:'CONVERTED'}}),
+    ]);
+    return {overdue,upcoming,unscheduled,converted,asOf:now.toISOString()};
   });
   app.get('/intakes/:id',{preHandler:[authenticate,requirePermission('intake.read')]},async(req:any,reply)=>{
     const item=await prisma.officeIntake.findFirst({where:{id:req.params.id,organizationId:req.auth.organizationId},include:relations});
