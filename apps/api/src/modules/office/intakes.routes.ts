@@ -6,6 +6,7 @@ import { authenticate } from '../../security/authenticate.js';
 import { requirePermission } from '../../security/authorize.js';
 import { auditMutation, briefOffice, instantString, nullableId, notes, officeError, pagination, title, validated } from './office-policy.js';
 import { checkOfficeReferences } from './office-references.js';
+import { followUpWhere } from './follow-up-policy.js';
 
 const schema=z.object({clientId:nullableId,processId:nullableId,responsibleId:nullableId,subject:title,channel:z.enum(['PHONE','EMAIL','WHATSAPP','IN_PERSON','VIDEO','OTHER']).default('OTHER'),description:notes,status:z.enum(['NEW','IN_PROGRESS','WAITING_CLIENT','CONVERTED','CLOSED']).default('NEW'),occurredAt:instantString.optional(),nextContactAt:instantString.nullable().optional()}).strict();
 const patch=schema.partial();
@@ -20,12 +21,10 @@ export async function intakesRoutes(app:FastifyInstance) {
     const followUp=String(req.query?.followUp??'').toUpperCase();
     const now=new Date();
     const where:Prisma.OfficeIntakeWhereInput={organizationId:org};
-    if(['NEW','IN_PROGRESS','WAITING_CLIENT','CONVERTED','CLOSED'].includes(status))where.status=status as any;
+    if(['NEW','IN_PROGRESS','WAITING_CLIENT','CONVERTED','CLOSED'].includes(status))where.status=status as Prisma.OfficeIntakeWhereInput['status'];
     if(followUp==='OVERDUE'||followUp==='UPCOMING'||followUp==='UNSCHEDULED'){
-      where.status={in:['NEW','IN_PROGRESS','WAITING_CLIENT']};
-      if(followUp==='OVERDUE')where.nextContactAt={lt:now};
-      if(followUp==='UPCOMING')where.nextContactAt={gte:now};
-      if(followUp==='UNSCHEDULED')where.nextContactAt=null;
+      Object.assign(where,followUpWhere(org,followUp,now));
+      // O filtro de retorno prevalece somente entre atendimentos ativos.
     }
     if(q)where.OR=[{subject:{contains:q,mode:'insensitive'}},{client:{name:{contains:q,mode:'insensitive'}}},{process:{npu:{contains:q}}}];
     const [items,total]=await Promise.all([prisma.officeIntake.findMany({where,orderBy:{occurredAt:'desc'},include:relations,skip,take}),prisma.officeIntake.count({where})]);
@@ -35,11 +34,10 @@ export async function intakesRoutes(app:FastifyInstance) {
   app.get('/intakes/summary',{preHandler:[authenticate,requirePermission('intake.read')]},async(req:any)=>{
     const organizationId=req.auth.organizationId as string;
     const now=new Date();
-    const active={organizationId,status:{in:['NEW','IN_PROGRESS','WAITING_CLIENT'] as const}};
     const [overdue,upcoming,unscheduled,converted]=await Promise.all([
-      prisma.officeIntake.count({where:{...active,nextContactAt:{lt:now}}}),
-      prisma.officeIntake.count({where:{...active,nextContactAt:{gte:now}}}),
-      prisma.officeIntake.count({where:{...active,nextContactAt:null}}),
+      prisma.officeIntake.count({where:followUpWhere(organizationId,'OVERDUE',now)}),
+      prisma.officeIntake.count({where:followUpWhere(organizationId,'UPCOMING',now)}),
+      prisma.officeIntake.count({where:followUpWhere(organizationId,'UNSCHEDULED',now)}),
       prisma.officeIntake.count({where:{organizationId,status:'CONVERTED'}}),
     ]);
     return {overdue,upcoming,unscheduled,converted,asOf:now.toISOString()};
