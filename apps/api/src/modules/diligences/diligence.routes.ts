@@ -4,6 +4,7 @@ import {Prisma} from '@prisma/client';
 import {prisma} from '../../db/prisma.js';
 import {authenticate} from '../../security/authenticate.js';
 import {requirePermission} from '../../security/authorize.js';
+import {requireModule} from '../commercial/module-entitlements.js';
 import {auditMutation,instantString,nullableId,notes,officeError,pagination,title,validated} from '../office/office-policy.js';
 
 const statuses=['REQUESTED','ACCEPTED','IN_PROGRESS','COMPLETED','CANCELLED'] as const;
@@ -23,10 +24,10 @@ function checkStatus(old:string|undefined,next:string){
  if(old==='COMPLETED'||old==='CANCELLED'){if(old!==next)throw new Error('INVALID_STATE');}
 }
 export async function diligenceRoutes(app:FastifyInstance){
- app.get('/diligences/correspondents',{preHandler:[authenticate,requirePermission('task.read')]},async(req:any)=>{
+ app.get('/diligences/correspondents',{preHandler:[authenticate,requirePermission('task.read'),requireModule('ADVANCED')]},async(req:any)=>{
    return prisma.person.findMany({where:{organizationId:req.auth.organizationId,active:true,roles:{has:'CORRESPONDENT'}},select:{id:true,name:true,email:true,city:true,state:true},orderBy:{name:'asc'},take:500});
  });
- app.get('/diligences',{preHandler:[authenticate,requirePermission('task.read')]},async(req:any)=>{
+ app.get('/diligences',{preHandler:[authenticate,requirePermission('task.read'),requireModule('ADVANCED')]},async(req:any)=>{
    const {page,take,skip}=pagination(req.query);
    const organizationId=req.auth.organizationId as string;
    const where:Prisma.DiligenceWhereInput={organizationId};
@@ -35,7 +36,7 @@ export async function diligenceRoutes(app:FastifyInstance){
    const [items,total]=await Promise.all([prisma.diligence.findMany({where,include:relations,orderBy:{updatedAt:'desc'},take,skip}),prisma.diligence.count({where})]);
    return {items,total,page,pageSize:take};
  });
- app.post('/diligences',{preHandler:[authenticate,requirePermission('task.write')]},async(req:any,reply)=>{
+ app.post('/diligences',{preHandler:[authenticate,requirePermission('task.write'),requireModule('ADVANCED')]},async(req:any,reply)=>{
    const input=validated(reply,schema,req.body);if(!input)return;
    try{
      await checkReferences(req.auth.organizationId,input);
@@ -48,7 +49,7 @@ export async function diligenceRoutes(app:FastifyInstance){
      return reply.code(201).send(row);
    }catch(e){return officeError(reply,e);}
  });
- app.patch('/diligences/:id',{preHandler:[authenticate,requirePermission('task.write')]},async(req:any,reply)=>{
+ app.patch('/diligences/:id',{preHandler:[authenticate,requirePermission('task.write'),requireModule('ADVANCED')]},async(req:any,reply)=>{
    const input=validated(reply,patch,req.body);if(!input)return;
    try{
      const row=await prisma.diligence.findFirst({where:{id:req.params.id,organizationId:req.auth.organizationId}});
