@@ -9,6 +9,8 @@ COPY . .
 RUN npm run build -w @sysadv/contracts && npm run build -w @sysadv/web
 
 FROM nginx:1.27-alpine
-COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf
+COPY apps/web/nginx.conf /etc/nginx/conf.d/default.conf.template
+COPY apps/web/15-runtime-dns.sh /docker-entrypoint.d/15-runtime-dns.sh
+RUN chmod +x /docker-entrypoint.d/15-runtime-dns.sh
 COPY --from=build /app/apps/web/dist /usr/share/nginx/html
 EXPOSE 80
