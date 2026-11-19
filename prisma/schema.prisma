@@ -115,6 +115,13 @@ enum DocumentType {
 
 
 // SysADV v0.10.0 - Gestao do escritorio: entidades independentes por organizacao.
+enum SubscriptionStatus {
+  TRIAL
+  ACTIVE
+  PAST_DUE
+  CANCELLED
+}
+
 enum AssetResearchStatus {
   REQUESTED
   AUTHORIZED
@@ -183,6 +190,7 @@ enum TimeEntryStatus {
 }
 
 model Organization {
+  subscription OfficeSubscription?
   assetResearchRequests AssetResearchRequest[]
   notificationInbox NotificationInbox[]
   workflowRules WorkflowRule[]
@@ -1489,4 +1497,22 @@ model AssetResearchRequest {
   requester User @relation("AssetResearchRequester",fields:[requesterId],references:[id],onDelete:Restrict)
   @@index([organizationId,status,createdAt])
   @@index([organizationId,processId])
+}
+
+model OfficeSubscription {
+  id String @id @default(cuid())
+  organizationId String @unique
+  planCode String
+  status SubscriptionStatus @default(TRIAL)
+  moduleCodes String[] @default([])
+  enforcementEnabled Boolean @default(false)
+  startsAt DateTime @default(now())
+  endsAt DateTime?
+  externalCustomerRef String?
+  externalSubscriptionRef String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  @@index([status,endsAt])
 }
