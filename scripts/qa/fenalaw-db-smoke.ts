@@ -47,6 +47,21 @@ try {
   assert.equal(info.sourceType,'WORKFLOW');
   console.log(JSON.stringify({ok:true,tenants:2,workflowRuns:1,notifications:1,idempotent:true}));
 } finally {
-  await prisma.organization.deleteMany({where:{id:{in:[orgA,orgB]}}});
-  await prisma.$disconnect();
+  // Limpeza na ordem das FKs, sem confiar na ordem das cascatas do PostgreSQL.
+  const scope={organizationId:{in:[orgA,orgB]}};
+  try {
+    await prisma.notificationInbox.deleteMany({where:scope});
+    await prisma.workflowRun.deleteMany({where:scope});
+    await prisma.workTask.deleteMany({where:scope});
+    await prisma.workflowRule.deleteMany({where:scope});
+    await prisma.crmOpportunity.deleteMany({where:scope});
+    await prisma.feeAgreement.deleteMany({where:scope});
+    await prisma.officeIntake.deleteMany({where:scope});
+    await prisma.person.deleteMany({where:scope});
+    await prisma.auditEvent.deleteMany({where:scope});
+    await prisma.user.deleteMany({where:scope});
+    await prisma.organization.deleteMany({where:{id:{in:[orgA,orgB]}}});
+  } finally {
+    await prisma.$disconnect();
+  }
 }
