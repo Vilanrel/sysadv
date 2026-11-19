@@ -1,6 +1,7 @@
 import type {FastifyInstance} from 'fastify';
 import {authenticate} from '../../security/authenticate.js';
 import {requirePermission} from '../../security/authorize.js';
+import {prisma} from '../../db/prisma.js';
 
 // Catalogo de capacidades comerciais, sem tabela de assinatura e sem habilitacao de acesso.
 // Planos sao rascunhos tecnicos, NAO ofertas precificadas nem contratos vigentes.
@@ -24,4 +25,12 @@ export async function commercialRoutes(app:FastifyInstance){
   subscriptionsEnabled:false,accessControlEnforced:false,
   notice:'Catalogo preliminar para definicao de planos. Nao representa assinatura ativa.',
  }));
+ app.get('/commercial/subscription',{preHandler:[authenticate,requirePermission('settings.read')]},async(req:any)=>{
+   const subscription=await prisma.officeSubscription.findUnique({
+     where:{organizationId:req.auth.organizationId},
+     select:{planCode:true,status:true,moduleCodes:true,enforcementEnabled:true,startsAt:true,endsAt:true},
+   });
+   return {subscription,legacyAccess:!subscription?.enforcementEnabled,checkoutAvailable:false,
+      note:'Apenas leitura. Ativacao comercial depende de provisionamento e integracao autorizada.'};
+ });
 }
