@@ -22,6 +22,7 @@ const PublicationsPage = page(() => import('../features/publications/Publication
 const PeoplePage = page(() => import('../features/people/PeoplePage'), 'PeoplePage');
 const OnboardingPage = page(() => import('../features/onboarding/OnboardingPage'), 'OnboardingPage');
 const DiligencesPage = page(() => import('../features/diligences/DiligencesPage'), 'DiligencesPage');
+const CommercialPlansPage = page(() => import('../features/commercial/CommercialPlansPage'), 'CommercialPlansPage');
 const AssetResearchPage = page(() => import('../features/asset-research/AssetResearchPage'), 'AssetResearchPage');
 const NotificationsPage = page(() => import('../features/notifications/NotificationsPage'), 'NotificationsPage');
 const WorkflowsPage = page(() => import('../features/workflows/WorkflowsPage'), 'WorkflowsPage');
@@ -62,6 +63,7 @@ export const router = createBrowserRouter([
     {path:'workflows',element:<WorkflowsPage/>},
     {path:'notifications',element:<NotificationsPage/>},
     {path:'asset-research',element:<AssetResearchPage/>},
+    {path:'commercial-plans',element:<CommercialPlansPage/>},
     {path:'diligences',element:<DiligencesPage/>},
     {path:'onboarding',element:<OnboardingPage/>},
     {path:'tasks',element:<TasksPage/>},
