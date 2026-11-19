@@ -1,0 +1,11 @@
+# SysADV — e-mail de notificacoes (opt-in)
+- Provedor HTTP: Resend, usando Idempotency-Key para impedir envios duplicados.
+- Habilitacao requer NOTIFICATION_EMAIL_ENABLED=true, RESEND_API_KEY e NOTIFICATION_FROM_EMAIL verificado.
+- Os segredos ficam somente no ambiente do worker; nao incluir no repositorio.
+- Cada usuario opta explicitamente na pagina Notificacoes, e pode revogar o aceite.
+- O job consulta o aceite no banco novamente antes de enviar, inclusive em retries.
+- As mensagens sao genericas: sem processo, dados de clientes ou detalhes juridicos.
+- O worker nao executa automaticamente por padrao. Para habilitar: agendar `node apps/api/dist/workers/notification-email-worker.js` em um job confiavel apos homologacao.
+- O worker usa claims transacionais com SKIP LOCKED, bloqueio de concorrencia, ate 5 tentativas e idempotencia remota.
+- Sem provisionamento e verificacao do remetente, nao ha entrega externa.
+- Nao tratar existencia de codigo como evidencia de e-mails enviados.

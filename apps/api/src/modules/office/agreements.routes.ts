@@ -6,6 +6,7 @@ import { authenticate } from '../../security/authenticate.js';
 import { requirePermission } from '../../security/authorize.js';
 import { auditMutation, briefOffice, dateOnly, dayString, idString, nullableId, nonNegativeCents, notes, officeError, pagination, positiveCents, title, validated } from './office-policy.js';
 import { checkOfficeReferences } from './office-references.js';
+import { installmentsInput, distributeCents, monthlyDueDates } from './installments-policy.js';
 
 const schema=z.object({clientId:idString,processId:nullableId,intakeId:nullableId,code:z.string().trim().min(2).max(50),title,feeModel:z.enum(['FIXED','HOURLY','SUCCESS']).default('FIXED'),status:z.enum(['DRAFT','ACTIVE','COMPLETED','CANCELLED']).default('DRAFT'),amountCents:nonNegativeCents.default(0),hourlyRateCents:positiveCents.nullable().optional(),contingencyBasisPoints:z.number().int().min(1).max(10000).nullable().optional(),startsOn:dayString.nullable().optional(),endsOn:dayString.nullable().optional(),notes}).strict();
 const patch=schema.partial();
@@ -36,6 +37,36 @@ export async function agreementsRoutes(app:FastifyInstance){
         await auditMutation(tx,req.auth,'AGREEMENT_CREATED','FeeAgreement',contract.id,null,briefOffice(contract,auditFields));return contract;
       });return reply.code(201).send(created);
     }catch(e:any){if(e?.code==='P2002')return reply.code(409).send({error:'ALREADY_EXISTS'});return officeError(reply,e);}
+  });
+  // Cobranças agendadas com base em contrato ativo. Não realiza transferência financeira.
+  app.post('/agreements/:id/installments',{preHandler:[authenticate,requirePermission('contract.manage'),requirePermission('finance.manage')]},async(req:any,reply)=>{
+    const input=validated(reply,installmentsInput,req.body);if(!input)return;
+    const organizationId=req.auth.organizationId as string;
+    try {
+      const result=await prisma.$transaction(async(tx)=>{
+        // Serializa geracoes simultaneas do mesmo contrato sem criar outra entidade.
+        await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${organizationId}),hashtext(${req.params.id as string}))`;
+        const agreement=await tx.feeAgreement.findFirst({where:{id:req.params.id,organizationId}});
+        if(!agreement)throw new Error('NOT_FOUND');
+        if(agreement.status!=='ACTIVE'||agreement.feeModel!=='FIXED')throw new Error('INVALID_STATE');
+        const marker=`SYSADV_PLAN:${agreement.id}:`;
+        const prior=await tx.financialEntry.findFirst({where:{organizationId,agreementId:agreement.id,notes:{startsWith:marker}},select:{id:true}});
+        if(prior)throw new Error('ALREADY_EXISTS');
+        const amounts=distributeCents(agreement.amountCents,input.installments);
+        const dates=monthlyDueDates(input.firstDueOn,input.installments);
+        const entries=await tx.financialEntry.createMany({data:amounts.map((amountCents,i)=>({
+          organizationId,createdById:req.auth.userId,personId:agreement.clientId,
+          processId:agreement.processId,intakeId:agreement.intakeId,agreementId:agreement.id,
+          kind:'RECEIVABLE',title:`Honorarios ${agreement.code} - ${i+1}/${amounts.length}`,
+          category:'Honorarios',amountCents,dueOn:dateOnly(dates[i]),issuedOn:dateOnly(new Date().toISOString().slice(0,10)),
+          notes:`${marker}${i+1}/${amounts.length}`,
+        }))});
+        await auditMutation(tx,req.auth,'AGREEMENT_INSTALLMENTS_CREATED','FeeAgreement',agreement.id,null,
+          {installments:amounts.length,totalCents:agreement.amountCents,firstDueOn:input.firstDueOn});
+        return {created:entries.count,totalCents:agreement.amountCents,dueDates:dates};
+      });
+      return reply.code(201).send(result);
+    }catch(e){return officeError(reply,e);}
   });
   app.patch('/agreements/:id',{preHandler:[authenticate,requirePermission('contract.manage')]},async(req:any,reply)=>{
     const input=validated(reply,patch,req.body);if(!input)return;

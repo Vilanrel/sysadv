@@ -1,3 +1,11 @@
+import { onboardingRoutes } from './modules/onboarding/onboarding.routes.js';
+import { commercialRoutes } from './modules/commercial/commercial.routes.js';
+import { assetResearchRoutes } from './modules/asset-research/asset-research.routes.js';
+import { notificationRoutes } from './modules/notifications/notifications.routes.js';
+import { workflowRoutes } from './modules/workflows/workflow.routes.js';
+import { diligenceRoutes } from './modules/diligences/diligence.routes.js';
+import { crmRoutes } from './modules/crm/crm.routes.js';
+import { legalAiRoutes } from './modules/legal-ai/legal-ai.routes.js';
 import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import { registerSecurity } from './plugins/security.js';
@@ -37,10 +45,10 @@ export async function buildApp() {
   // cache e descartavel e falhas nele nao revertem uma gravacao PostgreSQL.
   app.addHook('onResponse', async (req, reply) => {
     if (!req.auth || !['POST','PATCH','PUT','DELETE'].includes(req.method) || reply.statusCode >= 400) return;
-    if (!/^\/api\/(people|tasks|kanban|agenda|processes|processos|publications|publicacoes|integracoes|documents|templates|calculations|data-sources|sources|intakes|agreements|finance|timesheets|office|deadlines)(?:\/|$)/.test(req.url)) return;
+    if (!/^\/api\/(crm|diligences|workflows|asset-research|people|tasks|kanban|agenda|processes|processos|publications|publicacoes|integracoes|documents|templates|calculations|data-sources|sources|intakes|agreements|finance|timesheets|office|deadlines)(?:\/|$)/.test(req.url)) return;
     await invalidateOrganizationDashboard(req.auth.organizationId, env.DASHBOARD_CACHE_DIR).catch(err=>req.log.warn({err}, 'Dashboard cache invalidation failed'));
   });
   app.get('/api/health', async () => ({ status: 'ok' }));
-  await app.register(async api => { await api.register(authRoutes); await api.register(usersRoutes); await api.register(processesRoutes); await api.register(documentsRoutes); await api.register(integrationsRoutes); await api.register(auditRoutes); await api.register(dashboardRoutes); await api.register(calculationsRoutes); await api.register(systemRoutes); await api.register(dataSourcesRoutes); await api.register(publicationsRoutes); await api.register(pjeCalcAgentRoutes); await api.register(templatesRoutes); await api.register(peopleRoutes); await api.register(tasksRoutes); await api.register(agendaRoutes); await api.register(judicialIntegrationRoutes); await api.register(intakesRoutes); await api.register(agreementsRoutes); await api.register(financeRoutes); await api.register(timesheetRoutes); await api.register(reportsRoutes); await api.register(settingsRoutes); await api.register(deadlineRoutes); }, { prefix: '/api' });
+  await app.register(async api => { await api.register(authRoutes); await api.register(usersRoutes); await api.register(processesRoutes); await api.register(documentsRoutes); await api.register(integrationsRoutes); await api.register(auditRoutes); await api.register(dashboardRoutes); await api.register(calculationsRoutes); await api.register(systemRoutes); await api.register(dataSourcesRoutes); await api.register(publicationsRoutes); await api.register(pjeCalcAgentRoutes); await api.register(templatesRoutes); await api.register(peopleRoutes); await api.register(tasksRoutes); await api.register(agendaRoutes); await api.register(judicialIntegrationRoutes); await api.register(intakesRoutes); await api.register(agreementsRoutes); await api.register(financeRoutes); await api.register(timesheetRoutes); await api.register(reportsRoutes); await api.register(settingsRoutes); await api.register(deadlineRoutes); await api.register(legalAiRoutes); await api.register(crmRoutes); await api.register(diligenceRoutes); await api.register(workflowRoutes); await api.register(notificationRoutes); await api.register(assetResearchRoutes); await api.register(commercialRoutes); await api.register(onboardingRoutes); }, { prefix: '/api' });
   return app;
 }

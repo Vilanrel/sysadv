@@ -21,6 +21,13 @@ const EditProcessPage = page(() => import('../features/processes/EditProcessPage
 const PublicationsPage = page(() => import('../features/publications/PublicationsPage'), 'PublicationsPage');
 const PeoplePage = page(() => import('../features/people/PeoplePage'), 'PeoplePage');
 const OnboardingPage = page(() => import('../features/onboarding/OnboardingPage'), 'OnboardingPage');
+const DiligencesPage = page(() => import('../features/diligences/DiligencesPage'), 'DiligencesPage');
+const CommercialPlansPage = page(() => import('../features/commercial/CommercialPlansPage'), 'CommercialPlansPage');
+const AssetResearchPage = page(() => import('../features/asset-research/AssetResearchPage'), 'AssetResearchPage');
+const NotificationsPage = page(() => import('../features/notifications/NotificationsPage'), 'NotificationsPage');
+const WorkflowsPage = page(() => import('../features/workflows/WorkflowsPage'), 'WorkflowsPage');
+const CrmPage = page(() => import('../features/crm/CrmPage'), 'CrmPage');
+const LegalAiPage = page(() => import('../features/legal-ai/LegalAiPage'), 'LegalAiPage');
 const IntakesPage = page(() => import('../features/office/IntakesPage'), 'IntakesPage');
 const TasksPage = page(() => import('../features/tasks/TasksPage'), 'TasksPage');
 const KanbanPage = page(() => import('../features/tasks/KanbanPage'), 'KanbanPage');
@@ -52,6 +59,12 @@ export const router = createBrowserRouter([
     {path:'publications',element:<PublicationsPage/>},
     {path:'people',element:<PeoplePage/>},
     {path:'intakes',element:<IntakesPage/>},
+    {path:'crm',element:<CrmPage/>},
+    {path:'workflows',element:<WorkflowsPage/>},
+    {path:'notifications',element:<NotificationsPage/>},
+    {path:'asset-research',element:<AssetResearchPage/>},
+    {path:'commercial-plans',element:<CommercialPlansPage/>},
+    {path:'diligences',element:<DiligencesPage/>},
     {path:'onboarding',element:<OnboardingPage/>},
     {path:'tasks',element:<TasksPage/>},
     {path:'kanban',element:<KanbanPage/>},
@@ -64,6 +77,7 @@ export const router = createBrowserRouter([
     {path:'settings',element:<SettingsPage/>},
     {path:'documents',element:<DocumentsPage/>},
     {path:'templates',element:<DocumentTemplatesPage/>},
+    {path:'legal-ai',element:<LegalAiPage/>},
     {path:'calculations',element:<CalculationsPage/>},
     {path:'calculations/:id',element:<CalculationWorkspace/>},
     {path:'sources',element:<DataSourcesPage/>},
