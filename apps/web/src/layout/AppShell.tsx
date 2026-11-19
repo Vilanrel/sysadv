@@ -107,6 +107,7 @@ export function AppShell() {
     { heading: 'Conteúdo e cálculos', items: [
       { href: '/documents', label: 'Documentos', icon: 'documents', allowed: true },
       { href: '/templates', label: 'Modelos jurídicos', icon: 'templates', allowed: has('document.template.read') },
+      { href: '/legal-ai', label: 'Assistente jurídico IA', icon: 'templates', allowed: has('document.generate') },
       { href: '/calculations', label: 'Cálculos', icon: 'calculations', allowed: true },
     ] },
     { heading: 'Integrações e administração', items: [
