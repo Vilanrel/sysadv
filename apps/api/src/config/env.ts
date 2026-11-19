@@ -15,6 +15,9 @@ const schema = z.object({
   LOGIN_LOCK_MINUTES: z.coerce.number().int().positive().default(15),
   MAX_DOCUMENT_BYTES: z.coerce.number().int().positive().default(20 * 1024 * 1024),
   DATAJUD_API_KEY: z.preprocess(v => v === '' ? undefined : v, z.string().min(1).optional()),
+  LEGAL_AI_ENABLED: z.enum(['true','false']).default('false').transform(v => v === 'true'),
+  LEGAL_AI_MODEL: z.string().min(1).default('gpt-4.1-mini'),
+  LEGAL_AI_API_KEY: z.preprocess(v => v === '' ? undefined : v, z.string().min(1).optional()),
   SOURCE_ENCRYPTION_KEY: z.preprocess(v => v === '' ? undefined : v, z.string().min(32).optional())
 });
 
