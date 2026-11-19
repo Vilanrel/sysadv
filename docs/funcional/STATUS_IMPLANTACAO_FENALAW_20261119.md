@@ -51,3 +51,11 @@ de banco real em QA antes de qualquer deploy. Guia: docs/db/BASELINE_E_MIGRACOES
 4. Homologar workflows, IA juridica, financeiro e fontes de pesquisa autorizadas.
 5. Implementar assinaturas e controle seguro de habilitacao por escritorio.
 6. Gerar release no formato AAAAMMDDNN somente apos QA e aceite.
+
+## Avanco do marco de QA — GitHub Actions
+
+- PR #4 incorporou **somente** o workflow de QA manual a `main`, sem executa-lo.
+- O fluxo agora pode ser selecionado em `Actions > SysADV - QA manual isolado > Run workflow`, com branch `feat/fenalaw-reconciled-20261119`.
+- A execucao prevista inicia PostgreSQL 16 efemero, aplica DDL da baseline v0.10.1, marca a baseline no historico Prisma, aplica os quatro incrementos, verifica drift e roda smoke multiorganizacao. As escritas de smoke tem trava de ambiente QA e base `sysadv_qa`.
+- **Nao houve execucao e nao ha logs que comprovem sucesso.** Nao classificar como homologado.
+- PR #3 foi sincronizado com a `main` apos o merge da PR #4, preservando todo o trabalho em desenvolvimento.
