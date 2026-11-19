@@ -1,0 +1,39 @@
+name: SysADV - Validacao manual do candidato
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sysadv-validation-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  code-quality:
+    runs-on: ubuntu-latest
+    timeout-minutes: 12
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://sysadv:sysadv@localhost:5432/sysadv?schema=public
+      ACCESS_TOKEN_SECRET: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      REFRESH_TOKEN_SECRET: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      WEB_ORIGIN: http://localhost:5173
+      LEGAL_AI_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+      - run: npm ci --no-audit --no-fund
+      - run: npm run db:generate
+      - run: npx prisma validate
+      - run: npm run test -w @sysadv/api
+      - run: npm run test -w @sysadv/web
+      - run: npm run build
+
+# Executar manualmente somente quando for validar a branch.
+# Testes com PostgreSQL e migracoes dependem de um job QA separado,
+# que deve criar base descartavel, testar restore e nao conectar na PRD.
