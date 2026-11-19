@@ -198,6 +198,7 @@ enum TimeEntryStatus {
 }
 
 model Organization {
+  crmInteractions CrmInteraction[]
   notificationEmailDeliveries NotificationEmailDelivery[]
   subscription OfficeSubscription?
   assetResearchRequests AssetResearchRequest[]
@@ -249,6 +250,7 @@ model Organization {
 }
 
 model User {
+  authoredCrmInteractions CrmInteraction[] @relation("CrmInteractionAuthor")
   notificationEmailDeliveries NotificationEmailDelivery[] @relation("NotificationEmailRecipient")
   emailNotificationsOptIn Boolean @default(false)
   assetResearchRequests AssetResearchRequest[] @relation("AssetResearchRequester")
@@ -1388,6 +1390,7 @@ model DeadlineAlert {
 }
 
 model CrmOpportunity {
+  interactions CrmInteraction[]
   id String @id @default(cuid())
   organizationId String
   clientId String?
@@ -1547,4 +1550,20 @@ model NotificationEmailDelivery {
   notification NotificationInbox @relation(fields:[notificationId],references:[id],onDelete:Cascade)
   @@index([status,nextAttemptAt,createdAt])
   @@index([organizationId,recipientId,status])
+}
+
+model CrmInteraction {
+  id String @id @default(cuid())
+  organizationId String
+  opportunityId String
+  authorId String
+  channel String @default("OTHER")
+  summary String @db.Text
+  occurredAt DateTime @default(now())
+  nextContactAt DateTime?
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  opportunity CrmOpportunity @relation(fields:[opportunityId],references:[id],onDelete:Cascade)
+  author User @relation("CrmInteractionAuthor",fields:[authorId],references:[id],onDelete:Restrict)
+  @@index([organizationId,opportunityId,occurredAt])
 }
