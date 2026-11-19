@@ -1,4 +1,5 @@
 import type {Prisma, OfficeIntake, WorkflowEvent} from '@prisma/client';
+import {env} from '../../config/env.js';
 
 export function workflowTaskTitle(template:string,intake:Pick<OfficeIntake,'subject'|'status'>):string{
  return template.replaceAll('{assunto}',intake.subject).replaceAll('{situacao}',intake.status).trim().slice(0,200);
@@ -44,10 +45,22 @@ export async function applyIntakeWorkflow(
      sourceType:'WORKFLOW',sourceId:run.id,
    }});
    await tx.workflowRun.update({where:{id:run.id},data:{taskId:task.id}});
-   await tx.notificationInbox.create({data:{
-     organizationId:auth.organizationId,recipientId:rule.assignedToId??intake.responsibleId??auth.userId,
+   const recipientId=rule.assignedToId??intake.responsibleId??auth.userId;
+   const notification=await tx.notificationInbox.create({data:{
+     organizationId:auth.organizationId,recipientId,
      title:'Nova tarefa automatizada',body:title,sourceType:'WORKFLOW',sourceId:run.id,
    }});
+   if(env.NOTIFICATION_EMAIL_ENABLED){
+     const recipient=await tx.user.findFirst({
+       where:{organizationId:auth.organizationId,id:recipientId,status:'ACTIVE'},
+       select:{emailNotificationsOptIn:true},
+     });
+     if(recipient?.emailNotificationsOptIn){
+       await tx.notificationEmailDelivery.create({data:{
+         organizationId:auth.organizationId,recipientId,notificationId:notification.id,
+       }});
+     }
+   }
    await tx.auditEvent.create({data:{
      organizationId:auth.organizationId,userId:auth.userId,
      action:'WORKFLOW_TASK_CREATED',entityType:'WorkflowRun',entityId:run.id,

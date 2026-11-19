@@ -115,6 +115,14 @@ enum DocumentType {
 
 
 // SysADV v0.10.0 - Gestao do escritorio: entidades independentes por organizacao.
+enum EmailDeliveryStatus {
+  PENDING
+  SENDING
+  SENT
+  FAILED
+  CANCELLED
+}
+
 enum SubscriptionStatus {
   TRIAL
   ACTIVE
@@ -190,6 +198,7 @@ enum TimeEntryStatus {
 }
 
 model Organization {
+  notificationEmailDeliveries NotificationEmailDelivery[]
   subscription OfficeSubscription?
   assetResearchRequests AssetResearchRequest[]
   notificationInbox NotificationInbox[]
@@ -240,6 +249,8 @@ model Organization {
 }
 
 model User {
+  notificationEmailDeliveries NotificationEmailDelivery[] @relation("NotificationEmailRecipient")
+  emailNotificationsOptIn Boolean @default(false)
   assetResearchRequests AssetResearchRequest[] @relation("AssetResearchRequester")
   inboxNotifications NotificationInbox[] @relation("NotificationRecipient")
   assignedWorkflowRules WorkflowRule[] @relation("WorkflowRuleAssignee")
@@ -1461,6 +1472,7 @@ model WorkflowRun {
 }
 
 model NotificationInbox {
+  emailDelivery NotificationEmailDelivery?
   id String @id @default(cuid())
   organizationId String
   recipientId String
@@ -1515,4 +1527,24 @@ model OfficeSubscription {
 
   organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
   @@index([status,endsAt])
+}
+
+model NotificationEmailDelivery {
+  id String @id @default(cuid())
+  organizationId String
+  recipientId String
+  notificationId String @unique
+  status EmailDeliveryStatus @default(PENDING)
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now())
+  providerMessageId String?
+  sentAt DateTime?
+  lastError String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  recipient User @relation("NotificationEmailRecipient",fields:[recipientId],references:[id],onDelete:Cascade)
+  notification NotificationInbox @relation(fields:[notificationId],references:[id],onDelete:Cascade)
+  @@index([status,nextAttemptAt,createdAt])
+  @@index([organizationId,recipientId,status])
 }
