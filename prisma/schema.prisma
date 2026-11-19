@@ -198,6 +198,7 @@ enum TimeEntryStatus {
 }
 
 model Organization {
+  legalAiSettings LegalAiSettings?
   legalCitationAttestations LegalCitationAttestation[]
   userOnboardingProgress UserOnboardingProgress[]
   crmInteractions CrmInteraction[]
@@ -1597,4 +1598,14 @@ model LegalCitationAttestation {
   organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
   reviewer User @relation("CitationReviewer",fields:[reviewerId],references:[id],onDelete:Restrict)
   @@index([organizationId,reviewedAt])
+}
+
+model LegalAiSettings {
+  organizationId String @id
+  enabled Boolean @default(false)
+  model String @default("gpt-4.1-mini")
+  encryptedApiKey String? @db.Text
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
 }
