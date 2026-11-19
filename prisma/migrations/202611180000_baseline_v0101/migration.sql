@@ -1,0 +1,4 @@
+-- Baseline: schema SysADV v0.10.1 da main, existente antes das migracoes Fenalaw.
+-- O DDL completo da baseline e derivado de prisma/baseline/schema.prisma
+-- e aplicado no banco QA vazio com prisma migrate diff antes de marcar esta baseline como aplicada.
+-- Nunca executar migrate deploy em um banco vazio sem primeiro aplicar o DDL da baseline.
