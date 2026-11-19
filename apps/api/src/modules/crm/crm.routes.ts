@@ -3,6 +3,7 @@ import { Prisma } from '@prisma/client';
 import { prisma } from '../../db/prisma.js';
 import { authenticate } from '../../security/authenticate.js';
 import { requirePermission } from '../../security/authorize.js';
+import { requireModule } from '../commercial/module-entitlements.js';
 import { auditMutation, dateOnly, officeError, pagination, validated } from '../office/office-policy.js';
 import { opportunityInput, opportunityPatch, stages, validateOpportunityTransition } from './crm-policy.js';
 
@@ -14,7 +15,7 @@ async function checkRefs(organizationId:string, input:{clientId?:string|null;int
 }
 
 export async function crmRoutes(app:FastifyInstance){
- app.get('/crm/opportunities',{preHandler:[authenticate,requirePermission('intake.read')]},async(req:any)=>{
+ app.get('/crm/opportunities',{preHandler:[authenticate,requirePermission('intake.read'),requireModule('CRM')]},async(req:any)=>{
   const organizationId=req.auth.organizationId as string;
   const {page,take,skip}=pagination(req.query);
   const where:Prisma.CrmOpportunityWhereInput={organizationId};
@@ -28,15 +29,15 @@ export async function crmRoutes(app:FastifyInstance){
   ]);
   return {items,total,page,pageSize:take};
  });
- app.get('/crm/opportunities/summary',{preHandler:[authenticate,requirePermission('intake.read')]},async(req:any)=>{
+ app.get('/crm/opportunities/summary',{preHandler:[authenticate,requirePermission('intake.read'),requireModule('CRM')]},async(req:any)=>{
   const rows=await prisma.crmOpportunity.groupBy({by:['stage'],where:{organizationId:req.auth.organizationId},_count:{_all:true},_sum:{estimatedCents:true}});
   return Object.fromEntries(stages.map(stage=>[stage,(()=>{const row=rows.find(r=>r.stage===stage);return {count:row?._count._all??0,estimatedCents:row?._sum.estimatedCents??0};})()]));
  });
- app.get('/crm/opportunities/:id',{preHandler:[authenticate,requirePermission('intake.read')]},async(req:any,reply)=>{
+ app.get('/crm/opportunities/:id',{preHandler:[authenticate,requirePermission('intake.read'),requireModule('CRM')]},async(req:any,reply)=>{
   const row=await prisma.crmOpportunity.findFirst({where:{id:req.params.id,organizationId:req.auth.organizationId},include:relations});
   return row??reply.code(404).send({error:'NOT_FOUND'});
  });
- app.post('/crm/opportunities',{preHandler:[authenticate,requirePermission('intake.write')]},async(req:any,reply)=>{
+ app.post('/crm/opportunities',{preHandler:[authenticate,requirePermission('intake.write'),requireModule('CRM')]},async(req:any,reply)=>{
   const input=validated(reply,opportunityInput,req.body);if(!input)return;
   try{
    await checkRefs(req.auth.organizationId,input);validateOpportunityTransition(undefined,input.stage,input.clientId);
@@ -48,7 +49,7 @@ export async function crmRoutes(app:FastifyInstance){
    return reply.code(201).send(row);
   }catch(e){return officeError(reply,e);}
  });
- app.patch('/crm/opportunities/:id',{preHandler:[authenticate,requirePermission('intake.write')]},async(req:any,reply)=>{
+ app.patch('/crm/opportunities/:id',{preHandler:[authenticate,requirePermission('intake.write'),requireModule('CRM')]},async(req:any,reply)=>{
   const input=validated(reply,opportunityPatch,req.body);if(!input)return;
   try {
    const previous=await prisma.crmOpportunity.findFirst({where:{id:req.params.id,organizationId:req.auth.organizationId}});
