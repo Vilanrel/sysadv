@@ -3,6 +3,7 @@ import {z} from 'zod';
 import {prisma} from '../../db/prisma.js';
 import {authenticate} from '../../security/authenticate.js';
 import {requirePermission} from '../../security/authorize.js';
+import {requireModule} from '../commercial/module-entitlements.js';
 import {auditMutation,officeError,validated} from '../office/office-policy.js';
 
 const fields=z.object({
@@ -22,16 +23,16 @@ async function validateAssignee(organizationId:string,assignedToId?:string|null)
  }
 }
 export async function workflowRoutes(app:FastifyInstance){
- app.get('/workflows/rules',{preHandler:[authenticate,requirePermission('settings.read')]},async(req:any)=>{
+ app.get('/workflows/rules',{preHandler:[authenticate,requirePermission('settings.read'),requireModule('AUTOMATION')]},async(req:any)=>{
   return prisma.workflowRule.findMany({where:{organizationId:req.auth.organizationId},orderBy:{createdAt:'desc'},take:100,include:{assignee:{select:{id:true,name:true}}}});
  });
- app.get('/workflows/runs',{preHandler:[authenticate,requirePermission('audit.read')]},async(req:any)=>{
+ app.get('/workflows/runs',{preHandler:[authenticate,requirePermission('audit.read'),requireModule('AUTOMATION')]},async(req:any)=>{
   return prisma.workflowRun.findMany({
     where:{organizationId:req.auth.organizationId},include:{rule:{select:{name:true,event:true}}},
     orderBy:{createdAt:'desc'},take:100,
   });
  });
- app.post('/workflows/rules',{preHandler:[authenticate,requirePermission('settings.manage')]},async(req:any,reply)=>{
+ app.post('/workflows/rules',{preHandler:[authenticate,requirePermission('settings.manage'),requireModule('AUTOMATION')]},async(req:any,reply)=>{
   const input=validated(reply,fields,req.body);if(!input)return;
   try{
    await validateAssignee(req.auth.organizationId,input.assignedToId);
@@ -43,7 +44,7 @@ export async function workflowRoutes(app:FastifyInstance){
    return reply.code(201).send(row);
   }catch(e){return officeError(reply,e);}
  });
- app.patch('/workflows/rules/:id',{preHandler:[authenticate,requirePermission('settings.manage')]},async(req:any,reply)=>{
+ app.patch('/workflows/rules/:id',{preHandler:[authenticate,requirePermission('settings.manage'),requireModule('AUTOMATION')]},async(req:any,reply)=>{
   const input=validated(reply,update,req.body);if(!input)return;
   try{
    const previous=await prisma.workflowRule.findFirst({where:{id:req.params.id,organizationId:req.auth.organizationId}});
