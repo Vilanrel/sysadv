@@ -31,7 +31,7 @@ export function LegalAiPage(){
     setBusy(true);setError('');setResult(null);setCitations([]);
     try {
       const response=await officeRequest<Result>('/legal-ai/drafts',{method:'POST',body:JSON.stringify({
-        action,practiceArea:area,instructions,referenceText,
+        action,practiceArea:area,instructions,referenceText,approvedForExternalProvider:consent,
       })});
       setResult(response);
     }catch(e){setError(readableError(e));}finally{setBusy(false);}
