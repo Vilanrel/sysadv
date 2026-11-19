@@ -3,6 +3,7 @@ import {z} from 'zod';
 import {prisma} from '../../db/prisma.js';
 import {authenticate} from '../../security/authenticate.js';
 import {requirePermission} from '../../security/authorize.js';
+import {requireModule} from '../commercial/module-entitlements.js';
 import {auditMutation,officeError,validated} from '../office/office-policy.js';
 
 const create=z.object({
@@ -20,12 +21,12 @@ const update=z.object({
 }).strict();
 
 export async function assetResearchRoutes(app:FastifyInstance){
- app.get('/asset-research',{preHandler:[authenticate,requirePermission('process.read')]},async(req:any)=>{
+ app.get('/asset-research',{preHandler:[authenticate,requirePermission('process.read'),requireModule('ADVANCED')]},async(req:any)=>{
   return prisma.assetResearchRequest.findMany({where:{organizationId:req.auth.organizationId},
     include:{process:{select:{id:true,npu:true}},subject:{select:{id:true,name:true}}},
     orderBy:{createdAt:'desc'},take:100});
  });
- app.post('/asset-research',{preHandler:[authenticate,requirePermission('process.update')]},async(req:any,reply)=>{
+ app.post('/asset-research',{preHandler:[authenticate,requirePermission('process.update'),requireModule('ADVANCED')]},async(req:any,reply)=>{
   const input=validated(reply,create,req.body);if(!input)return;
   const org=req.auth.organizationId as string;
   try{
@@ -42,7 +43,7 @@ export async function assetResearchRoutes(app:FastifyInstance){
    return reply.code(201).send(row);
   }catch(e){return officeError(reply,e);}
  });
- app.patch('/asset-research/:id',{preHandler:[authenticate,requirePermission('process.update'),requirePermission('audit.read')]},async(req:any,reply)=>{
+ app.patch('/asset-research/:id',{preHandler:[authenticate,requirePermission('process.update'),requirePermission('audit.read'),requireModule('ADVANCED')]},async(req:any,reply)=>{
   const input=validated(reply,update,req.body);if(!input)return;
   const org=req.auth.organizationId as string;
   try{
