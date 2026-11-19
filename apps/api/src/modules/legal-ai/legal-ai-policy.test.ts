@@ -2,7 +2,7 @@ import {describe,expect,it} from 'vitest';
 import {legalDraftInput,legalAiMessages} from './legal-ai-policy.js';
 
 describe('RF-015-018: governanca de IA juridica',()=>{
- const valid={action:'DRAFT' as const,practiceArea:'Civil',instructions:'Elaborar minuta a partir dos fatos fornecidos pelo cliente.'};
+ const valid={action:'DRAFT' as const,approvedForExternalProvider:true,practiceArea:'Civil',instructions:'Elaborar minuta a partir dos fatos fornecidos pelo cliente.'};
  it('rejeita corpo com campos extras que tentem controlar o provedor',()=>{
    expect(legalDraftInput.safeParse({...valid,model:'outro'}).success).toBe(false);
  });
@@ -12,6 +12,10 @@ describe('RF-015-018: governanca de IA juridica',()=>{
    expect(messages[0].content).toContain('Nao invente leis');
    expect(messages[0].content).toContain('RASCUNHO');
    expect(messages[1].content).toContain('Material de referencia');
+ });
+ it('exige aceite expresso no backend antes de enviar informacoes externas',()=>{
+   expect(legalDraftInput.safeParse({...valid,approvedForExternalProvider:false}).success).toBe(false);
+   expect(legalDraftInput.safeParse({action:valid.action,practiceArea:valid.practiceArea,instructions:valid.instructions}).success).toBe(false);
  });
  it('limita tamanho da informacao enviada',()=>{
    expect(legalDraftInput.safeParse({...valid,referenceText:'x'.repeat(16001)}).success).toBe(false);
