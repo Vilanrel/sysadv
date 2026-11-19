@@ -49,6 +49,8 @@ jobs:
         run: |
           npx prisma validate
           npm run db:generate
+      - name: Build shared contracts before unit tests
+        run: npm run build -w @sysadv/contracts
       - name: Run unit tests
         run: |
           npm run test -w @sysadv/api
