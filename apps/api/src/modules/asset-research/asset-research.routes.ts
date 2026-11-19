@@ -5,6 +5,7 @@ import {authenticate} from '../../security/authenticate.js';
 import {requirePermission} from '../../security/authorize.js';
 import {requireModule} from '../commercial/module-entitlements.js';
 import {auditMutation,officeError,validated} from '../office/office-policy.js';
+import {validateResearchTransition} from './asset-research-policy.js';
 
 const create=z.object({
   title:z.string().trim().min(3).max(200),
@@ -50,9 +51,12 @@ export async function assetResearchRoutes(app:FastifyInstance){
    const previous=await prisma.assetResearchRequest.findFirst({where:{id:req.params.id,organizationId:org}});
    if(!previous)throw new Error('NOT_FOUND');
    if(['COMPLETED','CANCELLED'].includes(previous.status))throw new Error('INVALID_STATE');
-   const legalRef=input.authorizationReference??previous.authorizationReference;
-   if(['AUTHORIZED','IN_PROGRESS','COMPLETED'].includes(input.status)&&!legalRef)throw new Error('INVALID_REFERENCE');
-   if(input.status==='COMPLETED'&&(!(input.evidenceReference??previous.evidenceReference)||!(input.sourceName??previous.sourceName)))throw new Error('INVALID_REFERENCE');
+   validateResearchTransition(previous.status,input.status,{
+    authorizationReference:input.authorizationReference??previous.authorizationReference,
+    sourceName:input.sourceName??previous.sourceName,
+    evidenceReference:input.evidenceReference??previous.evidenceReference,
+    resultSummary:input.resultSummary??previous.resultSummary,
+   });
    const row=await prisma.$transaction(async tx=>{
     const changed=await tx.assetResearchRequest.update({where:{id:previous.id},data:input});
     await auditMutation(tx,req.auth,'ASSET_RESEARCH_UPDATED','AssetResearchRequest',changed.id,{status:previous.status},{status:changed.status,sourceName:changed.sourceName});
