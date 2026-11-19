@@ -94,6 +94,7 @@ export function AppShell() {
       { href: '/diligences', label: 'Diligências', icon: 'tasks', allowed: has('task.read') },
       { href: '/workflows', label: 'Automações', icon: 'tasks', allowed: has('settings.read') },
       { href: '/notifications', label: 'Notificações', icon: 'tasks', allowed: has('task.read') },
+      { href: '/asset-research', label: 'Pesquisa patrimonial', icon: 'processes', allowed: has('process.read') },
       { href: '/people', label: 'Clientes e pessoas', icon: 'people', allowed: has('person.read') },
       { href: '/processes', label: 'Processos', icon: 'processes', allowed: has('process.read') },
       { href: '/tasks', label: 'Tarefas', icon: 'tasks', allowed: has('task.read') },
