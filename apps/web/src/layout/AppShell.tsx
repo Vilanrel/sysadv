@@ -92,6 +92,7 @@ export function AppShell() {
       { href: '/intakes', label: 'Atendimentos', icon: 'intakes', allowed: has('intake.read') },
       { href: '/crm', label: 'CRM · Oportunidades', icon: 'intakes', allowed: has('intake.read') },
       { href: '/diligences', label: 'Diligências', icon: 'tasks', allowed: has('task.read') },
+      { href: '/workflows', label: 'Automações', icon: 'tasks', allowed: has('settings.read') },
       { href: '/people', label: 'Clientes e pessoas', icon: 'people', allowed: has('person.read') },
       { href: '/processes', label: 'Processos', icon: 'processes', allowed: has('process.read') },
       { href: '/tasks', label: 'Tarefas', icon: 'tasks', allowed: has('task.read') },
