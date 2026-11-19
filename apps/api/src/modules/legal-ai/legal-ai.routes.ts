@@ -1,25 +1,26 @@
 import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../../security/authenticate.js';
 import { requirePermission } from '../../security/authorize.js';
+import { requireModule } from '../commercial/module-entitlements.js';
 import { env } from '../../config/env.js';
 import { legalAiMessages, legalDraftInput } from './legal-ai-policy.js';
 import {citationReviewInput,extractCitationCandidates} from './citation-review.js';
 
 export async function legalAiRoutes(app:FastifyInstance) {
-  app.get('/legal-ai/status',{preHandler:[authenticate,requirePermission('document.generate')]}, async () => ({
+  app.get('/legal-ai/status',{preHandler:[authenticate,requirePermission('document.generate'),requireModule('LEGAL_AI')]}, async () => ({
     enabled: env.LEGAL_AI_ENABLED && Boolean(env.LEGAL_AI_API_KEY),
     reviewRequired: true,
     provider: 'OpenAI',
     model: env.LEGAL_AI_MODEL,
   }));
-  app.post('/legal-ai/citation-review',{preHandler:[authenticate,requirePermission('document.generate')]},async(req:any,reply)=>{
+  app.post('/legal-ai/citation-review',{preHandler:[authenticate,requirePermission('document.generate'),requireModule('LEGAL_AI')]},async(req:any,reply)=>{
     const input=citationReviewInput.safeParse(req.body);
     if(!input.success)return reply.code(400).send({error:'VALIDATION_ERROR'});
     const references=extractCitationCandidates(input.data.text);
     return {references,verified:0,requiresHumanReview:true,
       disclaimer:'Referencias apenas detectadas, nao consultadas nem verificadas em fontes oficiais.'};
   });
-  app.post('/legal-ai/drafts',{preHandler:[authenticate,requirePermission('document.generate')]},async (req:any,reply)=>{
+  app.post('/legal-ai/drafts',{preHandler:[authenticate,requirePermission('document.generate'),requireModule('LEGAL_AI')]},async (req:any,reply)=>{
     if (!env.LEGAL_AI_ENABLED || !env.LEGAL_AI_API_KEY) return reply.code(503).send({error:'LEGAL_AI_NOT_CONFIGURED'});
     const parsed=legalDraftInput.safeParse(req.body);
     if(!parsed.success) return reply.code(400).send({error:'VALIDATION_ERROR'});
