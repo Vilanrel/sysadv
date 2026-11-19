@@ -42,6 +42,37 @@ export async function intakesRoutes(app:FastifyInstance) {
     ]);
     return {overdue,upcoming,unscheduled,converted,asOf:now.toISOString()};
   });
+  // Transforma um proximo contato em tarefa rastreavel; a chave unica da origem evita duplicidade.
+  app.post('/intakes/:id/follow-up-task',{preHandler:[authenticate,requirePermission('intake.write'),requirePermission('task.write')]},async(req:any,reply)=>{
+    const organizationId=req.auth.organizationId as string;
+    const intake=await prisma.officeIntake.findFirst({where:{id:req.params.id,organizationId}});
+    if(!intake)return reply.code(404).send({error:'NOT_FOUND'});
+    if(intake.status==='CONVERTED'||intake.status==='CLOSED')return reply.code(409).send({error:'INVALID_STATE'});
+    if(!intake.nextContactAt)return reply.code(409).send({error:'FOLLOWUP_DATE_REQUIRED'});
+    const key={organizationId_sourceType_sourceId:{organizationId,sourceType:'INTAKE_FOLLOWUP',sourceId:intake.id}};
+    try{
+      const result=await prisma.$transaction(async(tx)=>{
+        const previous=await tx.workTask.findUnique({where:key});
+        if(previous)return {created:false,task:previous};
+        const task=await tx.workTask.create({data:{
+          organizationId,createdById:req.auth.userId,assignedToId:intake.responsibleId,
+          processId:intake.processId,personId:intake.clientId,
+          title:`Retorno: ${intake.subject}`.slice(0,200),
+          description:`Acompanhar atendimento ${intake.id}`,priority:'NORMAL',
+          status:'TODO',dueAt:intake.nextContactAt,sourceType:'INTAKE_FOLLOWUP',sourceId:intake.id,
+        }});
+        await auditMutation(tx,req.auth,'INTAKE_FOLLOWUP_TASK_CREATED','OfficeIntake',intake.id,null,{taskId:task.id});
+        return {created:true,task};
+      });
+      return reply.code(result.created?201:200).send(result);
+    }catch(e:any){
+      if(e?.code==='P2002'){
+        const task=await prisma.workTask.findUnique({where:key});
+        if(task)return {created:false,task};
+      }
+      return officeError(reply,e);
+    }
+  });
   app.get('/intakes/:id',{preHandler:[authenticate,requirePermission('intake.read')]},async(req:any,reply)=>{
     const item=await prisma.officeIntake.findFirst({where:{id:req.params.id,organizationId:req.auth.organizationId},include:relations});
     return item??reply.code(404).send({error:'NOT_FOUND'});
