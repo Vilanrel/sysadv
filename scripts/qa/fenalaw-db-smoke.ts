@@ -3,6 +3,11 @@ import { PrismaClient } from '@prisma/client';
 import { applyIntakeWorkflow } from '../../apps/api/src/modules/workflows/workflow-engine.js';
 
 /** Executar SOMENTE em PostgreSQL descartavel: criacao e remocao de registros de teste. */
+// Protecao obrigatoria: NUNCA execute este script em ambientes ou bancos nao descartaveis.
+const dbUrl=new URL(process.env.DATABASE_URL??'');
+if(process.env.NODE_ENV!=='test'||process.env.SYSADV_ALLOW_QA_DATA_WRITES!=='true'||!dbUrl.pathname.endsWith('/sysadv_qa')){
+  throw new Error('QA_DATABASE_ONLY: exige NODE_ENV=test, SYSADV_ALLOW_QA_DATA_WRITES=true e database sysadv_qa');
+}
 const prisma = new PrismaClient();
 const prefix = 'fenalaw-qa-'+process.pid+'-'+Date.now();
 const orgA=prefix+'-a',orgB=prefix+'-b';
