@@ -198,6 +198,7 @@ enum TimeEntryStatus {
 }
 
 model Organization {
+  userOnboardingProgress UserOnboardingProgress[]
   crmInteractions CrmInteraction[]
   notificationEmailDeliveries NotificationEmailDelivery[]
   subscription OfficeSubscription?
@@ -250,6 +251,7 @@ model Organization {
 }
 
 model User {
+  onboardingProgress UserOnboardingProgress?
   authoredCrmInteractions CrmInteraction[] @relation("CrmInteractionAuthor")
   notificationEmailDeliveries NotificationEmailDelivery[] @relation("NotificationEmailRecipient")
   emailNotificationsOptIn Boolean @default(false)
@@ -1566,4 +1568,15 @@ model CrmInteraction {
   opportunity CrmOpportunity @relation(fields:[opportunityId],references:[id],onDelete:Cascade)
   author User @relation("CrmInteractionAuthor",fields:[authorId],references:[id],onDelete:Restrict)
   @@index([organizationId,opportunityId,occurredAt])
+}
+
+model UserOnboardingProgress {
+  id String @id @default(cuid())
+  organizationId String
+  userId String @unique
+  completedSteps String[] @default([])
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  user User @relation(fields:[userId],references:[id],onDelete:Cascade)
+  @@index([organizationId,updatedAt])
 }

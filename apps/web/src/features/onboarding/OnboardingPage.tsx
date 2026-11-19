@@ -1,4 +1,5 @@
-import {useState} from 'react';
+import {useEffect,useState} from 'react';
+import {officeRequest,readableError} from '../office/OfficeShared';
 import {Link} from 'react-router-dom';
 import {useAuth} from '../auth/AuthProvider';
 const steps=[
@@ -12,12 +13,33 @@ const steps=[
 export function OnboardingPage(){
  const {user}=useAuth();
  const key='sysadv.onboarding.'+(user?.id??'local');
+ const [error,setError]=useState('');
  const [completed,setCompleted]=useState<string[]>(()=>{
    try{const saved=JSON.parse(window.localStorage.getItem(key)??'[]');return Array.isArray(saved)?saved.filter((x):x is string=>typeof x==='string'):[];}catch{return [];}
  });
- function toggle(value:string){setCompleted(prev=>{const next=prev.includes(value)?prev.filter(x=>x!==value):[...prev,value];try{window.localStorage.setItem(key,JSON.stringify(next));}catch{}return next;});}
+ useEffect(()=>{
+  let alive=true;
+  void officeRequest<{completedSteps:string[]}>('/onboarding/progress').then(data=>{
+    if(!alive)return;
+    setCompleted(data.completedSteps);
+    try{window.localStorage.setItem(key,JSON.stringify(data.completedSteps));}catch{}
+  }).catch(()=>{});
+  return()=>{alive=false;};
+ },[key]);
+ async function toggle(value:string){
+  const next=completed.includes(value)?completed.filter(x=>x!==value):[...completed,value];
+  setCompleted(next);setError('');
+  try{
+    const saved=await officeRequest<{completedSteps:string[]}>('/onboarding/progress',{
+      method:'PATCH',body:JSON.stringify({completedSteps:next}),
+    });
+    setCompleted(saved.completedSteps);
+    try{window.localStorage.setItem(key,JSON.stringify(saved.completedSteps));}catch{}
+  }catch(e){setCompleted(completed);setError(readableError(e));}
+ }
  return <main className="panel" style={{maxWidth:920,margin:'0 auto'}}>
   <h1>Primeiros passos no SysADV</h1>
+  {error&&<p role="alert">{error}</p>}
   <p className="muted">Roteiro de aprendizagem. Marcar uma atividade nao executa uma operacao nem confirma homologacao.</p>
   <p><strong>{completed.length} de {steps.length}</strong> atividades marcadas neste navegador.</p>
   <div style={{display:'grid',gap:16}}>
