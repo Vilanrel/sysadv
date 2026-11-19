@@ -90,6 +90,8 @@ export function AppShell() {
     { heading: 'Visão geral', items: [{ href: '/', label: 'Dashboard', icon: 'overview', allowed: true }, { href: '/onboarding', label: 'Primeiros passos', icon: 'overview', allowed: true }] },
     { heading: 'Operação jurídica', items: [
       { href: '/intakes', label: 'Atendimentos', icon: 'intakes', allowed: has('intake.read') },
+      { href: '/crm', label: 'CRM · Oportunidades', icon: 'intakes', allowed: has('intake.read') },
+      { href: '/diligences', label: 'Diligências', icon: 'tasks', allowed: has('task.read') },
       { href: '/people', label: 'Clientes e pessoas', icon: 'people', allowed: has('person.read') },
       { href: '/processes', label: 'Processos', icon: 'processes', allowed: has('process.read') },
       { href: '/tasks', label: 'Tarefas', icon: 'tasks', allowed: has('task.read') },
@@ -107,6 +109,7 @@ export function AppShell() {
     { heading: 'Conteúdo e cálculos', items: [
       { href: '/documents', label: 'Documentos', icon: 'documents', allowed: true },
       { href: '/templates', label: 'Modelos jurídicos', icon: 'templates', allowed: has('document.template.read') },
+      { href: '/legal-ai', label: 'Assistente jurídico IA', icon: 'templates', allowed: has('document.generate') },
       { href: '/calculations', label: 'Cálculos', icon: 'calculations', allowed: true },
     ] },
     { heading: 'Integrações e administração', items: [

@@ -1,5 +1,5 @@
 export const PERSON_KINDS = ['INDIVIDUAL', 'ORGANIZATION'] as const;
-export const PERSON_ROLES = ['CLIENT','CLAIMANT','DEFENDANT','LAWYER','SUPPLIER','CONTACT','OTHER'] as const;
+export const PERSON_ROLES = ['CLIENT','CLAIMANT','DEFENDANT','LAWYER','SUPPLIER','CORRESPONDENT','CONTACT','OTHER'] as const;
 export type PersonRole = (typeof PERSON_ROLES)[number];
 export type PersonKind = (typeof PERSON_KINDS)[number];
 export type PersonInput = {
