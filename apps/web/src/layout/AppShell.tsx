@@ -90,6 +90,7 @@ export function AppShell() {
     { heading: 'Visão geral', items: [{ href: '/', label: 'Dashboard', icon: 'overview', allowed: true }] },
     { heading: 'Operação jurídica', items: [
       { href: '/intakes', label: 'Atendimentos', icon: 'intakes', allowed: has('intake.read') },
+      { href: '/crm', label: 'CRM · Oportunidades', icon: 'intakes', allowed: has('intake.read') },
       { href: '/people', label: 'Clientes e pessoas', icon: 'people', allowed: has('person.read') },
       { href: '/processes', label: 'Processos', icon: 'processes', allowed: has('process.read') },
       { href: '/tasks', label: 'Tarefas', icon: 'tasks', allowed: has('task.read') },
