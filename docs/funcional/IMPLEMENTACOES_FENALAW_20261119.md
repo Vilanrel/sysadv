@@ -9,7 +9,7 @@ PENDENTE = fora do escopo implementado; VALIDAR = presente mas sem evidencia de 
 | IDs | Situacao em codigo | Observacao |
 |---|---|---|
 | RF-001 a RF-002 | EXISTENTE | pessoas e atendimentos |
-| RF-003 a RF-004 | NOVO PARCIAL | filtros e visualizacao do CRM; funil e historico omnicanal pendentes |
+| RF-003 a RF-004 | NOVO PARCIAL | funil de oportunidades CRUD e retorno em atendimentos; historico omnicanal pendente |
 | RF-005 | NOVO PARCIAL | criacao manual de tarefa vinculada ao retorno; envio e execucao automatica pendentes |
 | RF-006 a RF-008 | EXISTENTE | processos, movimentos, agenda |
 | RF-009 a RF-011 | VALIDAR | prazos, alertas e integracoes; dependencia de credenciamento e calendarios |
@@ -18,15 +18,18 @@ PENDENTE = fora do escopo implementado; VALIDAR = presente mas sem evidencia de 
 | RF-017 a RF-018 | PENDENTE | verificacao de jurisprudencia e de citacoes nao automatizada |
 | RF-019 a RF-020 | EXISTENTE | tarefas e Kanban |
 | RF-021 a RF-022 | NOVO PARCIAL | gatilho MANUAL para tarefa de retorno, nao motor generico de workflows |
-| RF-023 | PENDENTE | correspondentes e diligencias |
+| RF-023 | NOVO PARCIAL | cadastro de diligencias e papel de correspondente; alocacao/aceite externo ainda pendentes |
 | RF-024 a RF-026 | EXISTENTE | financeiro, honorarios, timesheet |
 | RF-027 | NOVO PARCIAL | parcelamento de honorarios fixos ativos; sem boleto, gateway ou liquidacao |
 | RF-028 a RF-029 | VALIDAR | indicadores e integracoes condicionadas |
 | RF-030 a RF-031 | PENDENTE | pesquisa patrimonial e fluxo especializado |
 | RF-032 a RF-033 | VALIDAR | permissoes/tenant; verificacao multi-organizacao com PostgreSQL necessaria |
-| RF-034 a RF-036 | PENDENTE | comercializacao modular e onboarding |
+| RF-034 a RF-035 | PENDENTE | planos comerciais e habilitacao por assinatura ainda nao implementados |
+| RF-036 | NOVO PARCIAL | roteiro de primeiros passos salvo no navegador, nao em banco |
 
 ## Contratos e novos endpoints
+- `GET/POST/PATCH /api/crm/opportunities` — oportunidades comerciais por etapa e escritorio, com auditoria e cliente opcional.
+- `GET/POST/PATCH /api/diligences` — diligencias por processo e correspondente cadastrado como pessoa.
 - `GET /api/intakes/summary` — indicadores isolados por escritorio autenticado.
 - `GET /api/intakes?followUp=OVERDUE|UPCOMING|UNSCHEDULED` — filtro de retornos.
 - `POST /api/intakes/:id/follow-up-task` — cria uma tarefa por atendimento e devolve a existente em chamada repetida; requer `intake.write` e `task.write`.
@@ -55,3 +58,9 @@ npm run build
 
 Nenhum desses comandos foi executado pela interacao remota atual.
 A homologacao integrada e a liberacao de producao serao executadas em etapa separada.
+
+## Alteracoes estruturais pendentes de banco
+- Novas entidades Prisma: `CrmOpportunity` e `Diligence`, com enum e indices.
+- Scripts de referencia em `sql/2026-11-19-sysadv-*-reference.sql`; **nao foram executados**.
+- Antes de subir a API com essas rotas, gerar a migracao versionada, homologar restauracao e aplicar no banco QA.
+- Nao utilizar `prisma db push` em producao nem migrar sem backup.
