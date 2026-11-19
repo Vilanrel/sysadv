@@ -37,3 +37,13 @@ integral do schema anterior e registrar essa baseline antes de aplicar os increm
 - `WorkflowRule.enabled=false` por padrao e `LEGAL_AI_ENABLED=false` por padrao.
 - Novas regras do motor de tarefas nao enviam mensagens nem acionam sistemas judiciais.
 - Mesmo com acesso de administracao, validacoes de tenant nunca aceitam organizationId do corpo.
+
+## QA automatizada preparada na branch
+
+O arquivo `.github/workflows/sysadv-manual-validation.yml` inclui PostgreSQL 16 descartavel, compilacao, testes, comparacao de schema e smoke multiescritorio. A baseline da `main` foi congelada em `prisma/baseline/schema.prisma` e o marcador `202611180000_baseline_v0101` foi adicionado ao diretorio de migracoes.
+
+**Atenção**: este fluxo ainda nao foi executado. Como o workflow está apenas na branch do PR e usa `workflow_dispatch`, pode nao aparecer no menu Actions ate estar disponivel na branch padrao. Nao interprete arquivo YAML como evidência de uma execucao bem-sucedida.
+
+O smoke `scripts/qa/fenalaw-db-smoke.ts` recusa gravacoes se o banco nao se chamar `sysadv_qa`, se `NODE_ENV` nao for `test` ou se `SYSADV_ALLOW_QA_DATA_WRITES` nao for `true`. Ele cria dados sintéticos isolados, valida o disparo idempotente de workflows, a geracao de notificacoes, a separacao de organizacoes e apaga os registros de QA ao finalizar.
+
+Ainda falta a comparacao com o DDL do **banco real de producao**, caso ele tenha divergido da versao Prisma versionada em main. A baseline congelada apenas reflete o codigo, nao constitui prova do estado do Railway.
