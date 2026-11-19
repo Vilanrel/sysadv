@@ -36,6 +36,7 @@ jobs:
       REFRESH_TOKEN_SECRET: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
       WEB_ORIGIN: http://localhost:5173
       LEGAL_AI_ENABLED: "false"
+      SYSADV_ALLOW_QA_DATA_WRITES: "true"
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-node@v4
