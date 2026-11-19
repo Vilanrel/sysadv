@@ -44,6 +44,10 @@ export async function applyIntakeWorkflow(
      sourceType:'WORKFLOW',sourceId:run.id,
    }});
    await tx.workflowRun.update({where:{id:run.id},data:{taskId:task.id}});
+   await tx.notificationInbox.create({data:{
+     organizationId:auth.organizationId,recipientId:rule.assignedToId??intake.responsibleId??auth.userId,
+     title:'Nova tarefa automatizada',body:title,sourceType:'WORKFLOW',sourceId:run.id,
+   }});
    await tx.auditEvent.create({data:{
      organizationId:auth.organizationId,userId:auth.userId,
      action:'WORKFLOW_TASK_CREATED',entityType:'WorkflowRun',entityId:run.id,
