@@ -40,7 +40,7 @@ export async function buildApp() {
   // cache e descartavel e falhas nele nao revertem uma gravacao PostgreSQL.
   app.addHook('onResponse', async (req, reply) => {
     if (!req.auth || !['POST','PATCH','PUT','DELETE'].includes(req.method) || reply.statusCode >= 400) return;
-    if (!/^\/api\/(people|tasks|kanban|agenda|processes|processos|publications|publicacoes|integracoes|documents|templates|calculations|data-sources|sources|intakes|agreements|finance|timesheets|office|deadlines)(?:\/|$)/.test(req.url)) return;
+    if (!/^\/api\/(crm|diligences|people|tasks|kanban|agenda|processes|processos|publications|publicacoes|integracoes|documents|templates|calculations|data-sources|sources|intakes|agreements|finance|timesheets|office|deadlines)(?:\/|$)/.test(req.url)) return;
     await invalidateOrganizationDashboard(req.auth.organizationId, env.DASHBOARD_CACHE_DIR).catch(err=>req.log.warn({err}, 'Dashboard cache invalidation failed'));
   });
   app.get('/api/health', async () => ({ status: 'ok' }));
