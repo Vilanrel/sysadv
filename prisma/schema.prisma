@@ -175,6 +175,7 @@ enum TimeEntryStatus {
 }
 
 model Organization {
+  notificationInbox NotificationInbox[]
   workflowRules WorkflowRule[]
   workflowRuns WorkflowRun[]
   diligences Diligence[]
@@ -222,6 +223,7 @@ model Organization {
 }
 
 model User {
+  inboxNotifications NotificationInbox[] @relation("NotificationRecipient")
   assignedWorkflowRules WorkflowRule[] @relation("WorkflowRuleAssignee")
   createdWorkflowRules WorkflowRule[] @relation("WorkflowRuleCreator")
   createdDiligences Diligence[] @relation("DiligenceCreator")
@@ -1436,4 +1438,20 @@ model WorkflowRun {
   rule WorkflowRule @relation(fields:[ruleId],references:[id],onDelete:Restrict)
   @@unique([organizationId,ruleId,eventKey])
   @@index([organizationId,createdAt])
+}
+
+model NotificationInbox {
+  id String @id @default(cuid())
+  organizationId String
+  recipientId String
+  title String
+  body String? @db.Text
+  sourceType String
+  sourceId String
+  readAt DateTime?
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  recipient User @relation("NotificationRecipient",fields:[recipientId],references:[id],onDelete:Cascade)
+  @@unique([organizationId,recipientId,sourceType,sourceId])
+  @@index([organizationId,recipientId,readAt,createdAt])
 }
