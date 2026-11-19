@@ -7,6 +7,7 @@ import { requirePermission } from '../../security/authorize.js';
 import { auditMutation, briefOffice, instantString, nullableId, notes, officeError, pagination, title, validated } from './office-policy.js';
 import { checkOfficeReferences } from './office-references.js';
 import { followUpWhere } from './follow-up-policy.js';
+import { applyIntakeWorkflow } from '../workflows/workflow-engine.js';
 
 const schema=z.object({clientId:nullableId,processId:nullableId,responsibleId:nullableId,subject:title,channel:z.enum(['PHONE','EMAIL','WHATSAPP','IN_PERSON','VIDEO','OTHER']).default('OTHER'),description:notes,status:z.enum(['NEW','IN_PROGRESS','WAITING_CLIENT','CONVERTED','CLOSED']).default('NEW'),occurredAt:instantString.optional(),nextContactAt:instantString.nullable().optional()}).strict();
 const patch=schema.partial();
@@ -84,7 +85,9 @@ export async function intakesRoutes(app:FastifyInstance) {
       if(input.status==='CONVERTED'&&!input.processId)throw new Error('INVALID_REFERENCE');
       const item=await prisma.$transaction(async tx=>{
         const created=await tx.officeIntake.create({data:{...input,organizationId:req.auth.organizationId,createdById:req.auth.userId,occurredAt:input.occurredAt?new Date(input.occurredAt):new Date(),nextContactAt:input.nextContactAt?new Date(input.nextContactAt):null,closedAt:input.status==='CLOSED'?new Date():null}});
-        await auditMutation(tx,req.auth,'INTAKE_CREATED','OfficeIntake',created.id,null,briefOffice(created,auditKeys));return created;
+        await auditMutation(tx,req.auth,'INTAKE_CREATED','OfficeIntake',created.id,null,briefOffice(created,auditKeys));
+        await applyIntakeWorkflow(tx,req.auth,created,'INTAKE_CREATED',`create:${created.id}`);
+        return created;
       });
       return reply.code(201).send(item);
     }catch(e){return officeError(reply,e);}
@@ -102,7 +105,9 @@ export async function intakesRoutes(app:FastifyInstance) {
       if(input.status!==undefined)data.closedAt=input.status==='CLOSED'?new Date():null;
       const updated=await prisma.$transaction(async tx=>{
         const changed=await tx.officeIntake.update({where:{id:item.id},data});
-        await auditMutation(tx,req.auth,'INTAKE_UPDATED','OfficeIntake',item.id,briefOffice(item,auditKeys),briefOffice(changed,auditKeys));return changed;
+        await auditMutation(tx,req.auth,'INTAKE_UPDATED','OfficeIntake',item.id,briefOffice(item,auditKeys),briefOffice(changed,auditKeys));
+        if(input.status!==undefined && input.status!==item.status)await applyIntakeWorkflow(tx,req.auth,changed,'INTAKE_STATUS_CHANGED',`status:${changed.id}:${item.status}:${changed.status}:${changed.updatedAt.toISOString()}`);
+        return changed;
       });return updated;
     }catch(e){return officeError(reply,e);}
   });
