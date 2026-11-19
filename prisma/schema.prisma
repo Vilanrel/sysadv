@@ -115,6 +115,15 @@ enum DocumentType {
 
 
 // SysADV v0.10.0 - Gestao do escritorio: entidades independentes por organizacao.
+enum WorkflowEvent {
+  INTAKE_CREATED
+  INTAKE_STATUS_CHANGED
+}
+
+enum WorkflowAction {
+  CREATE_TASK
+}
+
 enum DiligenceStatus {
   REQUESTED
   ACCEPTED
@@ -166,6 +175,8 @@ enum TimeEntryStatus {
 }
 
 model Organization {
+  workflowRules WorkflowRule[]
+  workflowRuns WorkflowRun[]
   diligences Diligence[]
   crmOpportunities CrmOpportunity[]
   officeIntakes OfficeIntake[]
@@ -211,6 +222,8 @@ model Organization {
 }
 
 model User {
+  assignedWorkflowRules WorkflowRule[] @relation("WorkflowRuleAssignee")
+  createdWorkflowRules WorkflowRule[] @relation("WorkflowRuleCreator")
   createdDiligences Diligence[] @relation("DiligenceCreator")
   ownedCrmOpportunities CrmOpportunity[] @relation("CrmOpportunityOwner")
   registeredIntakes OfficeIntake[] @relation("IntakeCreator")
@@ -1388,4 +1401,39 @@ model Diligence {
 
   @@index([organizationId,status,scheduledAt])
   @@index([organizationId,correspondentId])
+}
+
+model WorkflowRule {
+  id String @id @default(cuid())
+  organizationId String
+  createdById String
+  assignedToId String?
+  name String
+  enabled Boolean @default(false)
+  event WorkflowEvent
+  action WorkflowAction @default(CREATE_TASK)
+  taskTitle String
+  dueOffsetDays Int @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  creator User @relation("WorkflowRuleCreator",fields:[createdById],references:[id],onDelete:Restrict)
+  assignee User? @relation("WorkflowRuleAssignee",fields:[assignedToId],references:[id],onDelete:SetNull)
+  runs WorkflowRun[]
+  @@index([organizationId,event,enabled])
+}
+
+model WorkflowRun {
+  id String @id @default(cuid())
+  organizationId String
+  ruleId String
+  eventKey String
+  taskId String?
+  createdAt DateTime @default(now())
+
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  rule WorkflowRule @relation(fields:[ruleId],references:[id],onDelete:Restrict)
+  @@unique([organizationId,ruleId,eventKey])
+  @@index([organizationId,createdAt])
 }
