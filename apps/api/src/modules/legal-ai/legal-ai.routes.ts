@@ -5,6 +5,9 @@ import { requireModule } from '../commercial/module-entitlements.js';
 import { env } from '../../config/env.js';
 import { legalAiMessages, legalDraftInput } from './legal-ai-policy.js';
 import {citationReviewInput,extractCitationCandidates} from './citation-review.js';
+import {citationAttestationInput} from './citation-attestation-policy.js';
+import {prisma} from '../../db/prisma.js';
+import {auditMutation,officeError,validated} from '../office/office-policy.js';
 
 export async function legalAiRoutes(app:FastifyInstance) {
   app.get('/legal-ai/status',{preHandler:[authenticate,requirePermission('document.generate'),requireModule('LEGAL_AI')]}, async () => ({
@@ -19,6 +22,28 @@ export async function legalAiRoutes(app:FastifyInstance) {
     const references=extractCitationCandidates(input.data.text);
     return {references,verified:0,requiresHumanReview:true,
       disclaimer:'Referencias apenas detectadas, nao consultadas nem verificadas em fontes oficiais.'};
+  });
+  app.get('/legal-ai/citation-attestations',{preHandler:[authenticate,requirePermission('document.generate'),requireModule('LEGAL_AI')]},async(req:any)=>{
+    return prisma.legalCitationAttestation.findMany({
+      where:{organizationId:req.auth.organizationId},orderBy:{reviewedAt:'desc'},take:100,
+      select:{id:true,reference:true,referenceType:true,sourceUrl:true,reviewNotes:true,reviewedAt:true,reviewer:{select:{id:true,name:true}}},
+    });
+  });
+  app.post('/legal-ai/citation-attestations',{preHandler:[authenticate,requirePermission('document.generate'),requireModule('LEGAL_AI')]},async(req:any,reply)=>{
+    const input=validated(reply,citationAttestationInput,req.body);if(!input)return;
+    try{
+      const row=await prisma.$transaction(async tx=>{
+        const item=await tx.legalCitationAttestation.create({data:{
+          organizationId:req.auth.organizationId,reviewerId:req.auth.userId,
+          reference:input.reference,referenceType:input.referenceType,
+          sourceUrl:input.sourceUrl,reviewNotes:input.reviewNotes,
+        }});
+        await auditMutation(tx,req.auth,'LEGAL_CITATION_HUMAN_ATTESTED','LegalCitationAttestation',item.id,null,
+          {reference:item.reference,sourceUrl:item.sourceUrl});
+        return item;
+      });
+      return reply.code(201).send({id:row.id,reviewedAt:row.reviewedAt,status:'HUMAN_ATTESTED',sourceVerifiedAutomatically:false});
+    }catch(e){return officeError(reply,e);}
   });
   app.post('/legal-ai/drafts',{preHandler:[authenticate,requirePermission('document.generate'),requireModule('LEGAL_AI')]},async (req:any,reply)=>{
     if (!env.LEGAL_AI_ENABLED || !env.LEGAL_AI_API_KEY) return reply.code(503).send({error:'LEGAL_AI_NOT_CONFIGURED'});

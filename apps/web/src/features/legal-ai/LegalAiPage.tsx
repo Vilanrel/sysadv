@@ -15,6 +15,9 @@ export function LegalAiPage(){
   const [consent,setConsent]=useState(false);
   const [result,setResult]=useState<Result|null>(null);
   const [citations,setCitations]=useState<{reference:string;type:string;status:string}[]>([]);
+  const [citationLinks,setCitationLinks]=useState<Record<string,string>>({});
+  const [citationConfirmed,setCitationConfirmed]=useState<Record<string,boolean>>({});
+  const [citationAttested,setCitationAttested]=useState<Record<string,boolean>>({});
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   useEffect(()=>{void officeRequest<Status>('/legal-ai/status').then(setStatus).catch(e=>setError(readableError(e)));},[]);
@@ -26,9 +29,18 @@ export function LegalAiPage(){
       setCitations(review.references);
     }catch(e){setError(readableError(e));}
   }
+  async function attestCitation(c:{reference:string;type:string}){
+    setBusy(true);setError('');
+    try{
+      await officeRequest('/legal-ai/citation-attestations',{method:'POST',
+        body:JSON.stringify({reference:c.reference,referenceType:c.type,sourceUrl:citationLinks[c.reference],personallyChecked:true}),
+      });
+      setCitationAttested(prev=>({...prev,[c.reference]:true}));
+    }catch(e){setError(readableError(e));}finally{setBusy(false);}
+  }
   async function submit(event:FormEvent){
     event.preventDefault();if(!consent)return;
-    setBusy(true);setError('');setResult(null);setCitations([]);
+    setBusy(true);setError('');setResult(null);setCitations([]);setCitationLinks({});setCitationConfirmed({});setCitationAttested({});
     try {
       const response=await officeRequest<Result>('/legal-ai/drafts',{method:'POST',body:JSON.stringify({
         action,practiceArea:area,instructions,referenceText,approvedForExternalProvider:consent,
@@ -60,7 +72,14 @@ export function LegalAiPage(){
       <textarea readOnly rows={18} value={result.draft} style={{width:'100%'}} aria-label="Rascunho em texto"/>
       <button className="ghost" type="button" onClick={()=>void navigator.clipboard.writeText(result.draft)}>Copiar rascunho</button>
       <button className="ghost" type="button" onClick={()=>void reviewCitations()}>Listar referências para conferência</button>
-      {citations.length>0&&<section><h3>Referências detectadas — nenhuma verificada automaticamente</h3><ul>{citations.map((c,i)=><li key={i}>{c.reference} ({c.type}) — pendente de conferência oficial</li>)}</ul></section>}
+      {citations.length>0&&<section><h3>Referências para conferência humana</h3>
+       <p className="muted">O sistema não consulta nem comprova o conteúdo das fontes. Registre uma confirmação somente após conferir pessoalmente a referência na página oficial.</p>
+       <ul>{citations.map((c,i)=><li key={i}><strong>{c.reference}</strong> ({c.type}) — {citationAttested[c.reference]?'Conferência humana registrada':'Pendente de conferência'}
+         {!citationAttested[c.reference]&&<div className="office-form">
+          <label className="office-span-2">URL da fonte oficial<input type="url" value={citationLinks[c.reference]??''} onChange={e=>setCitationLinks(prev=>({...prev,[c.reference]:e.target.value}))} placeholder="https://...jus.br/..."/></label>
+          <label className="office-span-2"><input type="checkbox" checked={citationConfirmed[c.reference]??false} onChange={e=>setCitationConfirmed(prev=>({...prev,[c.reference]:e.target.checked}))}/> Eu verifiquei pessoalmente o texto na fonte indicada.</label>
+          <button className="ghost office-span-2" type="button" disabled={busy||!citationConfirmed[c.reference]||!citationLinks[c.reference]} onClick={()=>void attestCitation(c)}>Registrar conferência humana</button>
+         </div>}</li>)}</ul></section>}
       <p className="muted">Não salvo automaticamente no banco. Não gera petição ou protocolo.</p>
     </section>}
   </main>;

@@ -198,6 +198,7 @@ enum TimeEntryStatus {
 }
 
 model Organization {
+  legalCitationAttestations LegalCitationAttestation[]
   userOnboardingProgress UserOnboardingProgress[]
   crmInteractions CrmInteraction[]
   notificationEmailDeliveries NotificationEmailDelivery[]
@@ -251,6 +252,7 @@ model Organization {
 }
 
 model User {
+  legalCitationAttestations LegalCitationAttestation[] @relation("CitationReviewer")
   onboardingProgress UserOnboardingProgress?
   authoredCrmInteractions CrmInteraction[] @relation("CrmInteractionAuthor")
   notificationEmailDeliveries NotificationEmailDelivery[] @relation("NotificationEmailRecipient")
@@ -1581,4 +1583,18 @@ model UserOnboardingProgress {
   organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
   user User @relation(fields:[userId],references:[id],onDelete:Cascade)
   @@index([organizationId,updatedAt])
+}
+
+model LegalCitationAttestation {
+  id String @id @default(cuid())
+  organizationId String
+  reviewerId String
+  reference String
+  referenceType String
+  sourceUrl String
+  reviewNotes String? @db.Text
+  reviewedAt DateTime @default(now())
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  reviewer User @relation("CitationReviewer",fields:[reviewerId],references:[id],onDelete:Restrict)
+  @@index([organizationId,reviewedAt])
 }
