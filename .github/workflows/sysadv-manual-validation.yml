@@ -1,0 +1,71 @@
+name: SysADV - QA manual isolado
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: sysadv-qa-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  code-and-db:
+    runs-on: ubuntu-latest
+    timeout-minutes: 18
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: sysadv
+          POSTGRES_PASSWORD: sysadv_test_only
+          POSTGRES_DB: sysadv_qa
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U sysadv -d sysadv_qa"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
+    env:
+      NODE_ENV: test
+      DATABASE_URL: postgresql://sysadv:sysadv_test_only@localhost:5432/sysadv_qa?schema=public
+      PGURL: postgresql://sysadv:sysadv_test_only@localhost:5432/sysadv_qa
+      ACCESS_TOKEN_SECRET: aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
+      REFRESH_TOKEN_SECRET: bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
+      WEB_ORIGIN: http://localhost:5173
+      LEGAL_AI_ENABLED: "false"
+      SYSADV_ALLOW_QA_DATA_WRITES: "true"
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Check schema and generate Prisma client
+        run: |
+          npx prisma validate
+          npm run db:generate
+      - name: Run unit tests
+        run: |
+          npm run test -w @sysadv/api
+          npm run test -w @sysadv/web
+      - name: Compile API and Web
+        run: npm run build
+      - name: Restore original SysADV baseline in disposable PostgreSQL
+        run: |
+          npx prisma migrate diff --from-empty --to-schema-datamodel prisma/baseline/schema.prisma --script > /tmp/sysadv-baseline.sql
+          test -s /tmp/sysadv-baseline.sql
+          psql "$PGURL" -v ON_ERROR_STOP=1 -f /tmp/sysadv-baseline.sql
+          npx prisma migrate resolve --applied 202611180000_baseline_v0101
+      - name: Deploy incremental migrations only in ephemeral QA
+        run: npx prisma migrate deploy
+      - name: Check that migrations produced the expected schema
+        run: |
+          npx prisma migrate status
+          npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+      - name: Run isolated integration smoke tests
+        run: npx tsx scripts/qa/fenalaw-db-smoke.ts
