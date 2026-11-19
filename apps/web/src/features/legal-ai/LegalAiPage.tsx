@@ -14,12 +14,21 @@ export function LegalAiPage(){
   const [referenceText,setReferenceText]=useState('');
   const [consent,setConsent]=useState(false);
   const [result,setResult]=useState<Result|null>(null);
+  const [citations,setCitations]=useState<{reference:string;type:string;status:string}[]>([]);
   const [busy,setBusy]=useState(false);
   const [error,setError]=useState('');
   useEffect(()=>{void officeRequest<Status>('/legal-ai/status').then(setStatus).catch(e=>setError(readableError(e)));},[]);
+  async function reviewCitations(){
+    if(!result)return;
+    setError('');
+    try{
+      const review=await officeRequest<{references:{reference:string;type:string;status:string}[]}>('/legal-ai/citation-review',{method:'POST',body:JSON.stringify({text:result.draft})});
+      setCitations(review.references);
+    }catch(e){setError(readableError(e));}
+  }
   async function submit(event:FormEvent){
     event.preventDefault();if(!consent)return;
-    setBusy(true);setError('');setResult(null);
+    setBusy(true);setError('');setResult(null);setCitations([]);
     try {
       const response=await officeRequest<Result>('/legal-ai/drafts',{method:'POST',body:JSON.stringify({
         action,practiceArea:area,instructions,referenceText,
@@ -50,6 +59,8 @@ export function LegalAiPage(){
       <p>Verifique fatos, legislação, precedentes, datas, citações e confidencialidade antes de utilizar.</p>
       <textarea readOnly rows={18} value={result.draft} style={{width:'100%'}} aria-label="Rascunho em texto"/>
       <button className="ghost" type="button" onClick={()=>void navigator.clipboard.writeText(result.draft)}>Copiar rascunho</button>
+      <button className="ghost" type="button" onClick={()=>void reviewCitations()}>Listar referências para conferência</button>
+      {citations.length>0&&<section><h3>Referências detectadas — nenhuma verificada automaticamente</h3><ul>{citations.map((c,i)=><li key={i}>{c.reference} ({c.type}) — pendente de conferência oficial</li>)}</ul></section>}
       <p className="muted">Não salvo automaticamente no banco. Não gera petição ou protocolo.</p>
     </section>}
   </main>;
