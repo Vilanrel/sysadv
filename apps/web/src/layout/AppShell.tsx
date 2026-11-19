@@ -87,7 +87,7 @@ export function AppShell() {
 
   const [theme, setTheme] = useState<ThemeChoice>(readTheme);
   const groups = useMemo<NavGroup[]>(() => [
-    { heading: 'Visão geral', items: [{ href: '/', label: 'Dashboard', icon: 'overview', allowed: true }] },
+    { heading: 'Visão geral', items: [{ href: '/', label: 'Dashboard', icon: 'overview', allowed: true }, { href: '/onboarding', label: 'Primeiros passos', icon: 'overview', allowed: true }] },
     { heading: 'Operação jurídica', items: [
       { href: '/intakes', label: 'Atendimentos', icon: 'intakes', allowed: has('intake.read') },
       { href: '/people', label: 'Clientes e pessoas', icon: 'people', allowed: has('person.read') },
