@@ -115,6 +115,14 @@ enum DocumentType {
 
 
 // SysADV v0.10.0 - Gestao do escritorio: entidades independentes por organizacao.
+enum AssetResearchStatus {
+  REQUESTED
+  AUTHORIZED
+  IN_PROGRESS
+  COMPLETED
+  CANCELLED
+}
+
 enum WorkflowEvent {
   INTAKE_CREATED
   INTAKE_STATUS_CHANGED
@@ -175,6 +183,7 @@ enum TimeEntryStatus {
 }
 
 model Organization {
+  assetResearchRequests AssetResearchRequest[]
   notificationInbox NotificationInbox[]
   workflowRules WorkflowRule[]
   workflowRuns WorkflowRun[]
@@ -223,6 +232,7 @@ model Organization {
 }
 
 model User {
+  assetResearchRequests AssetResearchRequest[] @relation("AssetResearchRequester")
   inboxNotifications NotificationInbox[] @relation("NotificationRecipient")
   assignedWorkflowRules WorkflowRule[] @relation("WorkflowRuleAssignee")
   createdWorkflowRules WorkflowRule[] @relation("WorkflowRuleCreator")
@@ -323,6 +333,7 @@ model Session {
 }
 
 model LegalProcess {
+  assetResearchRequests AssetResearchRequest[]
   diligences Diligence[]
   officeIntakes OfficeIntake[]
   feeAgreements FeeAgreement[]
@@ -797,6 +808,7 @@ model UserSecurityEvent {
 
 // SysADV v0.9.0 — entidades aditivas, PostgreSQL como fonte de verdade.
 model Person {
+  assetResearchRequests AssetResearchRequest[]
   assignedDiligences Diligence[] @relation("DiligenceCorrespondent")
   crmOpportunities CrmOpportunity[]
   officeIntakes OfficeIntake[]
@@ -1454,4 +1466,27 @@ model NotificationInbox {
   recipient User @relation("NotificationRecipient",fields:[recipientId],references:[id],onDelete:Cascade)
   @@unique([organizationId,recipientId,sourceType,sourceId])
   @@index([organizationId,recipientId,readAt,createdAt])
+}
+
+model AssetResearchRequest {
+  id String @id @default(cuid())
+  organizationId String
+  processId String
+  subjectPersonId String
+  requesterId String
+  title String
+  legalBasis String @db.Text
+  authorizationReference String?
+  status AssetResearchStatus @default(REQUESTED)
+  sourceName String?
+  evidenceReference String?
+  resultSummary String? @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  process LegalProcess @relation(fields:[processId],references:[id],onDelete:Restrict)
+  subject Person @relation(fields:[subjectPersonId],references:[id],onDelete:Restrict)
+  requester User @relation("AssetResearchRequester",fields:[requesterId],references:[id],onDelete:Restrict)
+  @@index([organizationId,status,createdAt])
+  @@index([organizationId,processId])
 }
