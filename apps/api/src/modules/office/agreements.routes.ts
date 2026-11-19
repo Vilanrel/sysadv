@@ -45,7 +45,7 @@ export async function agreementsRoutes(app:FastifyInstance){
     try {
       const result=await prisma.$transaction(async(tx)=>{
         // Serializa geracoes simultaneas do mesmo contrato sem criar outra entidade.
-        await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${organizationId}),hashtext(${req.params.id as string}))`;
+        await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${organizationId}),hashtext(${req.params.id as string}))`;
         const agreement=await tx.feeAgreement.findFirst({where:{id:req.params.id,organizationId}});
         if(!agreement)throw new Error('NOT_FOUND');
         if(agreement.status!=='ACTIVE'||agreement.feeModel!=='FIXED')throw new Error('INVALID_STATE');
