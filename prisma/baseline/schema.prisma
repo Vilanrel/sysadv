@@ -1,0 +1,1317 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum PersonKind {
+  INDIVIDUAL
+  ORGANIZATION
+}
+
+enum WorkTaskPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+enum WorkTaskStatus {
+  TODO
+  IN_PROGRESS
+  REVIEW
+  DONE
+  CANCELLED
+}
+
+enum CalendarEventType {
+  HEARING
+  MEETING
+  DEADLINE
+  OTHER
+}
+
+enum UserStatus {
+  INVITED
+  ACTIVE
+  INACTIVE
+  LOCKED
+}
+
+enum SourceType {
+  OFFICIAL
+  AI
+  MANUAL
+}
+
+enum DataSourceType {
+  REST_API
+  PUBLIC_PORTAL
+  SERVICE
+  MANUAL
+}
+
+enum DataSourceStatus {
+  ACTIVE
+  INACTIVE
+  ERROR
+}
+
+enum DataSourceAuthType {
+  NONE
+  API_KEY
+  BASIC
+  BEARER
+  OAUTH2
+}
+
+enum SyncMode {
+  MANUAL
+  SCHEDULED
+}
+
+enum FieldStatus {
+  PENDING
+  VALIDATED
+  DIVERGENCE
+}
+
+enum CalculationStatus {
+  READY
+  DRAFT
+  DATA_PENDING
+  READY_FOR_REVIEW
+  VALIDATED
+  PJC_GENERATED
+  QUEUED
+  PROCESSING
+  COMPLETED
+  COMPLETED_WITH_WARNINGS
+  FAILED
+  CANCELLED
+}
+
+enum TemplateContext {
+  PROCESS
+  GENERAL
+}
+
+enum DocumentBlockScope {
+  GENERIC
+  EXCLUSIVE
+}
+
+enum DocumentType {
+  SENTENCE
+  APPEAL
+  EMBARGO
+  CALCULATION
+  PAYSLIP
+  OTHER
+}
+
+
+// SysADV v0.10.0 - Gestao do escritorio: entidades independentes por organizacao.
+enum IntakeStatus {
+  NEW
+  IN_PROGRESS
+  WAITING_CLIENT
+  CONVERTED
+  CLOSED
+}
+
+enum FinancialKind {
+  RECEIVABLE
+  PAYABLE
+}
+
+enum FeeModel {
+  FIXED
+  HOURLY
+  SUCCESS
+}
+
+enum FeeStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum TimeEntryStatus {
+  DRAFT
+  SUBMITTED
+  APPROVED
+  REJECTED
+}
+
+model Organization {
+  officeIntakes OfficeIntake[]
+  feeAgreements FeeAgreement[]
+  financialEntries FinancialEntry[]
+  financialPayments FinancialPayment[]
+  timeEntries TimeEntry[]
+  officeSettings OfficeSettings?
+  id        String   @id @default(cuid())
+  name      String
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  users     User[]
+  roles     Role[]
+  processes LegalProcess[]
+  auditEvents AuditEvent[]
+  integrationRequests IntegrationRequest[]
+  calculations Calculation[]
+  pjeCalcAgents PjeCalcAgent[]
+  dataSources DataSource[]
+  publications OfficialPublication[]
+  userSecurityEvents UserSecurityEvent[]
+  documentTemplates DocumentTemplate[]
+  documentBlocks DocumentBlock[]
+  people Person[]
+  tasks WorkTask[]
+  kanbanBoards KanbanBoard[]
+  calendarEvents CalendarEvent[]
+  holidays CourtHoliday[]
+  judicialConnections JudicialConnection[]
+  judicialJobs JudicialJob[]
+  judicialRecords JudicialRecordVersion[]
+  judicialResearchResults JudicialResearchResult[]
+  judicialReads JudicialInternalRead[]
+  judicialOutbox JudicialOutbox[]
+  judicialQuarantine JudicialQuarantine[]
+  deadlineRules DeadlineRule[]
+  deadlines DeadlineCase[]
+  deadlineAlerts DeadlineAlert[]
+  courtCalendarCoverages CourtCalendarCoverage[]
+  courtSuspensions CourtSuspension[]
+}
+
+model User {
+  registeredIntakes OfficeIntake[] @relation("IntakeCreator")
+  responsibleIntakes OfficeIntake[] @relation("IntakeResponsible")
+  authoredAgreements FeeAgreement[] @relation("FeeAgreementCreator")
+  financialEntriesCreated FinancialEntry[] @relation("FinancialEntryCreator")
+  paymentsCreated FinancialPayment[] @relation("FinancialPaymentCreator")
+  reportedTimeEntries TimeEntry[] @relation("TimeEntryReporter")
+  approvedTimeEntries TimeEntry[] @relation("TimeEntryApprover")
+  id                     String     @id @default(cuid())
+  organizationId         String
+  email                  String
+  name                   String
+  passwordHash           String
+  status                  UserStatus @default(ACTIVE)
+  failedLoginAttempts     Int        @default(0)
+  lockedUntil             DateTime?
+  passwordResetTokenHash  String?
+  passwordResetExpiresAt  DateTime?
+  mfaSecretEncrypted      String?
+  mfaEnabled              Boolean    @default(false)
+  mfaRequired             Boolean    @default(false)
+  passwordChangeRequired  Boolean    @default(false)
+  lastLoginAt             DateTime?
+  createdAt               DateTime   @default(now())
+  updatedAt               DateTime   @updatedAt
+  organization            Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  roles                   UserRole[]
+  sessions                Session[]
+  documents               Document[] @relation("UploadedDocuments")
+  validations             ProcessFieldEvidence[] @relation("ValidatedBy")
+  auditEvents             AuditEvent[]
+  calculationValidations  CalculationVersion[] @relation("CalculationVersionValidatedBy")
+  integrationRequests     IntegrationRequest[]
+  securityEvents          UserSecurityEvent[] @relation("SecurityEventTarget")
+  securityActions         UserSecurityEvent[] @relation("SecurityEventActor")
+  authoredTemplates       DocumentTemplate[] @relation("TemplateAuthor")
+  createdTasks            WorkTask[] @relation("TaskCreator")
+  assignedTasks           WorkTask[] @relation("TaskAssignee")
+  createdCalendarEvents   CalendarEvent[] @relation("CalendarEventCreator")
+  responsibleCalendarEvents CalendarEvent[] @relation("CalendarEventResponsible")
+
+  @@unique([organizationId, email])
+  @@index([organizationId])
+}
+
+model Role {
+  id             String   @id @default(cuid())
+  organizationId String?
+  code           String
+  name           String
+  system         Boolean  @default(true)
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  users          UserRole[]
+  permissions    RolePermission[]
+
+  @@unique([organizationId, code])
+}
+
+model Permission {
+  id          String @id @default(cuid())
+  code        String @unique
+  description String
+  roles       RolePermission[]
+}
+
+model UserRole {
+  userId String
+  roleId String
+  user   User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role   Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  @@id([userId, roleId])
+}
+
+model RolePermission {
+  roleId       String
+  permissionId String
+  role         Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission   Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  @@id([roleId, permissionId])
+}
+
+model Session {
+  id               String   @id @default(cuid())
+  userId           String
+  refreshTokenHash String   @unique
+  expiresAt        DateTime
+  revokedAt        DateTime?
+  createdAt        DateTime @default(now())
+  lastUsedAt       DateTime @default(now())
+  ipAddress        String?
+  userAgent        String?
+  user             User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  @@index([userId])
+}
+
+model LegalProcess {
+  officeIntakes OfficeIntake[]
+  feeAgreements FeeAgreement[]
+  financialEntries FinancialEntry[]
+  timeEntries TimeEntry[]
+  id                     String   @id @default(cuid())
+  organizationId         String
+  npu                    String
+  claimant               String?
+  defendant              String?
+  claimantDocument       String?
+  defendantDocument      String?
+  court                  String?
+  trt                    String?
+  judicialSegment        String?
+  judicialSegmentCode    String?
+  tribunalCode           String?
+  datajudAlias           String?
+  judgingBody            String?
+  laborCourt             String?
+  municipality           String?
+  responsibleLawyer      String?
+  filingDate             DateTime?
+  admissionDate          DateTime?
+  terminationDate        DateTime?
+  jobTitle               String?
+  contractualSalaryCents Int?
+  referenceDate          DateTime?
+  proceduralPhase        String?
+  calculationDueDate     DateTime?
+  notes                  String?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  evidence               ProcessFieldEvidence[]
+  documents              Document[]
+  auditEvents            AuditEvent[]
+  integrationRequests    IntegrationRequest[]
+  calculations           Calculation[]
+  publications           OfficialPublication[]
+  movements              ProcessMovement[]
+  peopleLinks            ProcessPersonLink[]
+  workTasks              WorkTask[]
+  calendarEvents         CalendarEvent[]
+  deletedAt              DateTime?
+  deletedById            String?
+  deletionReason         String?
+  deadlines DeadlineCase[]
+  @@unique([organizationId, npu])
+  @@index([organizationId])
+  @@index([organizationId, deletedAt, updatedAt]) // listagem de processos ativos ordenada por atualização
+}
+
+model ProcessFieldEvidence {
+  id             String      @id @default(cuid())
+  processId      String
+  fieldName      String
+  valueText      String?
+  sourceType     SourceType
+  status         FieldStatus @default(PENDING)
+  sourceLabel    String?
+  provider       String?
+  sourceRef      String?
+  sourceUrl      String?
+  retrievedAt    DateTime?
+  reliabilityScore Float?
+  metadata       Json?
+  documentId     String?
+  pageNumber     Int?
+  excerpt        String?
+  confidence     Float?
+  validatedById  String?
+  validatedAt    DateTime?
+  createdAt      DateTime @default(now())
+  process        LegalProcess @relation(fields: [processId], references: [id], onDelete: Cascade)
+  document       Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  validatedBy    User? @relation("ValidatedBy", fields: [validatedById], references: [id], onDelete: SetNull)
+  @@index([processId, fieldName])
+  @@index([processId, createdAt]) // detalhes do processo: evidências mais recentes primeiro
+}
+
+model Document {
+  id             String       @id @default(cuid())
+  organizationId String
+  processId      String
+  uploadedById   String
+  type           DocumentType @default(OTHER)
+  originalName   String
+  mimeType       String
+  sizeBytes      Int
+  sha256         String
+  storageKey     String
+  version        Int          @default(1)
+  templateId     String?
+  templateVersion Int?
+  description    String?
+  isPrivate      Boolean      @default(false)
+  hiddenFromClient Boolean    @default(false)
+  createdAt      DateTime     @default(now())
+  template       DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: SetNull)
+  process        LegalProcess @relation(fields: [processId], references: [id], onDelete: Cascade)
+  uploadedBy     User @relation("UploadedDocuments", fields: [uploadedById], references: [id], onDelete: Restrict)
+  evidence       ProcessFieldEvidence[]
+  @@unique([organizationId, storageKey])
+  @@index([organizationId, processId])
+  @@index([templateId])
+}
+
+model DocumentTemplate {
+  id             String          @id @default(cuid())
+  organizationId String
+  createdById    String
+  name           String
+  category       String          @default("Geral")
+  context        TemplateContext @default(PROCESS)
+  description    String?         @db.Text
+  content        String          @db.Text
+  header         String?         @db.Text
+  footer         String?         @db.Text
+  version        Int             @default(1)
+  active         Boolean         @default(true)
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+  organization   Organization    @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  createdBy      User            @relation("TemplateAuthor", fields: [createdById], references: [id], onDelete: Restrict)
+  versions       DocumentTemplateVersion[]
+  blocks         DocumentBlock[]
+  documents      Document[]
+  @@index([organizationId, active, updatedAt])
+}
+
+model DocumentTemplateVersion {
+  id             String   @id @default(cuid())
+  templateId     String
+  version        Int
+  snapshot       Json
+  changedById    String
+  createdAt      DateTime @default(now())
+  template       DocumentTemplate @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  @@unique([templateId, version])
+}
+
+model DocumentBlock {
+  id             String   @id @default(cuid())
+  organizationId String
+  templateId     String?
+  scope          DocumentBlockScope @default(EXCLUSIVE)
+  name           String
+  content        String   @db.Text
+  recommended    Boolean  @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  template       DocumentTemplate? @relation(fields: [templateId], references: [id], onDelete: Cascade)
+  @@index([organizationId, scope])
+  @@index([templateId])
+}
+
+model AuditEvent {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  processId      String?
+  action         String
+  entityType     String
+  entityId       String?
+  previousValue  Json?
+  newValue       Json?
+  source         String
+  ipAddress      String?
+  userAgent      String?
+  createdAt      DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  process        LegalProcess? @relation(fields: [processId], references: [id], onDelete: SetNull)
+  @@index([organizationId, createdAt])
+  @@index([processId])
+}
+
+
+model IntegrationRequest {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String?
+  processId      String?
+  npu            String?
+  provider       String   @default("DATAJUD")
+  purpose        String
+  trt            String?
+  judicialSegment String?
+  tribunal        String?
+  tribunalCode    String?
+  datajudAlias    String?
+  endpoint       String
+  method         String   @default("POST")
+  httpStatus     Int?
+  success        Boolean
+  found          Boolean?
+  durationMs     Int
+  errorCode      String?
+  createdAt      DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+  process        LegalProcess? @relation(fields: [processId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, createdAt])
+  @@index([organizationId, success, createdAt])
+  @@index([processId, createdAt])
+}
+
+model Calculation {
+  id             String            @id @default(cuid())
+  organizationId String
+  processId      String
+  status         CalculationStatus @default(DRAFT)
+  parameters     Json?
+  notes          String?
+  currentVersion Int               @default(0)
+  validatedAt    DateTime?
+  createdAt      DateTime          @default(now())
+  updatedAt      DateTime          @updatedAt
+  organization   Organization      @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  process        LegalProcess      @relation(fields: [processId], references: [id], onDelete: Cascade)
+  versions       CalculationVersion[]
+  packages       PjeCalcPackage[]
+  executions     PjeCalcExecution[]
+  artifacts      PjeCalcArtifact[]
+
+  @@index([organizationId, updatedAt])
+  @@index([processId, updatedAt])
+}
+
+model CalculationVersion {
+  id            String   @id @default(cuid())
+  calculationId String
+  version       Int
+  parameters    Json
+  notes         String?
+  validatedById String?
+  validatedAt   DateTime?
+  createdAt     DateTime @default(now())
+  calculation   Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  validatedBy   User? @relation("CalculationVersionValidatedBy", fields: [validatedById], references: [id], onDelete: SetNull)
+  @@unique([calculationId, version])
+}
+
+model PjeCalcPackage {
+  id            String   @id @default(cuid())
+  calculationId String
+  version       Int
+  fileName      String
+  storagePath   String?
+  sha256        String
+  manifest      Json
+  createdAt     DateTime @default(now())
+  calculation   Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  @@index([calculationId, createdAt])
+}
+
+model PjeCalcExecution {
+  id            String   @id @default(cuid())
+  calculationId String
+  agentId       String?
+  status        String   @default("QUEUED")
+  inputPackageId String?
+  startedAt     DateTime?
+  finishedAt    DateTime?
+  errorCode     String?
+  errorMessage  String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+  calculation   Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  agent         PjeCalcAgent? @relation(fields: [agentId], references: [id], onDelete: SetNull)
+  @@index([calculationId, createdAt])
+  @@index([agentId, status])
+}
+
+model PjeCalcArtifact {
+  id            String   @id @default(cuid())
+  calculationId String
+  executionId   String?
+  kind          String
+  fileName      String
+  storagePath   String?
+  mimeType      String?
+  sha256        String
+  sizeBytes     Int
+  createdAt     DateTime @default(now())
+  calculation   Calculation @relation(fields: [calculationId], references: [id], onDelete: Cascade)
+  @@index([calculationId, createdAt])
+}
+
+model PjeCalcAgent {
+  id             String   @id @default(cuid())
+  organizationId String
+  name           String
+  tokenHash      String   @unique
+  status         String   @default("ACTIVE")
+  version        String?
+  capabilities   Json?
+  lastHeartbeatAt DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  executions     PjeCalcExecution[]
+  @@index([organizationId, status])
+}
+
+
+
+model ProcessMovement {
+  id             String   @id @default(cuid())
+  processId      String
+  provider       String   @default("DATAJUD")
+  fingerprint    String
+  code           String?
+  name           String
+  occurredAt     DateTime?
+  judgingBody    String?
+  complements    Json?
+  rawMetadata    Json?
+  createdAt      DateTime @default(now())
+  process        LegalProcess @relation(fields: [processId], references: [id], onDelete: Cascade)
+
+  @@unique([processId, provider, fingerprint])
+  @@index([processId, occurredAt])
+}
+
+model DataSource {
+  id                 String             @id @default(cuid())
+  organizationId     String
+  code               String
+  name               String
+  type               DataSourceType
+  description        String?
+  environment        String             @default("PRODUCTION")
+  status             DataSourceStatus   @default(INACTIVE)
+  priority           Int                @default(100)
+  baseUrl            String?
+  authType           DataSourceAuthType @default(NONE)
+  timeoutMs          Int                @default(30000)
+  retryCount         Int                @default(3)
+  backoffMs          Int                @default(2000)
+  rateLimitPerMinute Int?
+  rateLimitPerHour   Int?
+  rateLimitPerDay    Int?
+  syncMode           SyncMode           @default(MANUAL)
+  syncIntervalMinutes Int?
+  lookbackDays       Int                @default(30)
+  pageSize           Int                @default(100)
+  headers            Json?
+  settings           Json?
+  lastSyncAt         DateTime?
+  createdAt          DateTime           @default(now())
+  updatedAt          DateTime           @updatedAt
+  organization       Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  secrets            DataSourceSecret[]
+  healthChecks       DataSourceHealth[]
+  publications       OfficialPublication[]
+
+  @@unique([organizationId, code])
+  @@index([organizationId, status, priority])
+}
+
+model DataSourceSecret {
+  id             String   @id @default(cuid())
+  sourceId       String
+  secretType     String
+  encryptedValue String
+  keyVersion     Int      @default(1)
+  createdAt      DateTime @default(now())
+  rotatedAt      DateTime @default(now())
+  source         DataSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@unique([sourceId, secretType])
+}
+
+model DataSourceHealth {
+  id             String   @id @default(cuid())
+  sourceId       String
+  checkedAt      DateTime @default(now())
+  success        Boolean
+  httpStatus     Int?
+  latencyMs      Int
+  sanitizedError String?
+  source         DataSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  @@index([sourceId, checkedAt])
+}
+
+model OfficialPublication {
+  id             String   @id @default(cuid())
+  organizationId String
+  processId      String?
+  sourceId       String?
+  npu            String
+  externalId     String?
+  fingerprint    String
+  tribunal       String?
+  judgingBody    String?
+  actType        String
+  availableAt    DateTime?
+  publishedAt    DateTime?
+  title          String?
+  content        String
+  sourceUrl      String?
+  rawMetadata    Json?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  process        LegalProcess? @relation(fields: [processId], references: [id], onDelete: SetNull)
+  source         DataSource? @relation(fields: [sourceId], references: [id], onDelete: SetNull)
+  parties        PublicationParty[]
+  lawyers        PublicationLawyer[]
+  movementLinks  PublicationMovementLink[]
+  workTasks WorkTask[]
+
+  @@unique([organizationId, fingerprint])
+  @@index([organizationId, npu, publishedAt])
+  @@index([processId, publishedAt])
+}
+
+model PublicationParty {
+  id            String   @id @default(cuid())
+  publicationId String
+  pole          String?
+  name          String
+  documentMasked String?
+  publication   OfficialPublication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  @@index([publicationId])
+}
+
+model PublicationLawyer {
+  id            String   @id @default(cuid())
+  publicationId String
+  name          String
+  oabNumber     String?
+  oabState      String?
+  publication   OfficialPublication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  @@index([publicationId])
+}
+
+model PublicationMovementLink {
+  id            String   @id @default(cuid())
+  publicationId String
+  movementRef   String
+  method        String
+  score         Float?
+  linkedById    String?
+  linkedAt      DateTime @default(now())
+  publication   OfficialPublication @relation(fields: [publicationId], references: [id], onDelete: Cascade)
+  @@unique([publicationId, movementRef])
+  @@index([publicationId])
+}
+
+model UserSecurityEvent {
+  id             String   @id @default(cuid())
+  organizationId String
+  userId         String
+  actorId        String?
+  type           String
+  reason         String?
+  metadata       Json?
+  createdAt      DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  user           User     @relation("SecurityEventTarget", fields: [userId], references: [id], onDelete: Cascade)
+  actor          User?    @relation("SecurityEventActor", fields: [actorId], references: [id], onDelete: SetNull)
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+}
+
+
+// SysADV v0.9.0 — entidades aditivas, PostgreSQL como fonte de verdade.
+model Person {
+  officeIntakes OfficeIntake[]
+  feeAgreements FeeAgreement[]
+  financialEntries FinancialEntry[]
+  id             String @id @default(cuid())
+  organizationId String
+  name           String
+  kind           PersonKind @default(INDIVIDUAL)
+  taxId          String?
+  email          String?
+  phone          String?
+  roles          String[] @default([])
+  street         String?
+  streetNumber   String?
+  complement     String?
+  district       String?
+  city           String?
+  state          String?
+  zipCode        String?
+  notes          String? @db.Text
+  active         Boolean @default(true)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  processLinks   ProcessPersonLink[]
+  tasks          WorkTask[]
+
+  @@unique([organizationId, taxId])
+  @@index([organizationId, active, name])
+}
+
+model ProcessPersonLink {
+  id             String @id @default(cuid())
+  processId      String
+  personId       String
+  role           String
+  createdAt      DateTime @default(now())
+  process        LegalProcess @relation(fields: [processId], references: [id], onDelete: Cascade)
+  person         Person @relation(fields: [personId], references: [id], onDelete: Restrict)
+
+  @@unique([processId, personId, role])
+  @@index([personId])
+}
+
+model WorkTask {
+  timeEntries TimeEntry[]
+  id             String @id @default(cuid())
+  organizationId String
+  createdById    String
+  assignedToId   String?
+  processId      String?
+  personId       String?
+  publicationId  String?
+  boardColumnId  String?
+  title          String
+  description    String? @db.Text
+  priority       WorkTaskPriority @default(NORMAL)
+  status         WorkTaskStatus @default(TODO)
+  dueAt          DateTime?
+  completedAt    DateTime?
+  sourceType     String?
+  sourceId       String?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator        User @relation("TaskCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  assignedTo     User? @relation("TaskAssignee", fields: [assignedToId], references: [id], onDelete: SetNull)
+  process        LegalProcess? @relation(fields: [processId], references: [id], onDelete: SetNull)
+  person         Person? @relation(fields: [personId], references: [id], onDelete: SetNull)
+  publication    OfficialPublication? @relation(fields: [publicationId], references: [id], onDelete: SetNull)
+  boardColumn    KanbanColumn? @relation(fields: [boardColumnId], references: [id], onDelete: SetNull)
+  checklist      TaskChecklistItem[]
+
+  @@unique([organizationId, sourceType, sourceId])
+  @@index([organizationId, status, dueAt])
+  @@index([organizationId, assignedToId, dueAt])
+  @@index([boardColumnId])
+}
+
+model TaskChecklistItem {
+  id             String @id @default(cuid())
+  taskId         String
+  title          String
+  required       Boolean @default(true)
+  completed      Boolean @default(false)
+  completedAt    DateTime?
+  completedById  String?
+  position       Int @default(0)
+  createdAt      DateTime @default(now())
+  task           WorkTask @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, position])
+}
+
+model KanbanBoard {
+  id             String @id @default(cuid())
+  organizationId String
+  name           String
+  isDefault      Boolean @default(false)
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  columns        KanbanColumn[]
+
+  @@index([organizationId, isDefault])
+}
+
+model KanbanColumn {
+  id             String @id @default(cuid())
+  boardId        String
+  name           String
+  position       Int
+  mappedStatus   WorkTaskStatus?
+  board          KanbanBoard @relation(fields: [boardId], references: [id], onDelete: Cascade)
+  tasks          WorkTask[]
+
+  @@unique([boardId, position])
+}
+
+model CalendarEvent {
+  id             String @id @default(cuid())
+  organizationId String
+  createdById    String
+  responsibleId  String?
+  processId      String?
+  title          String
+  type           CalendarEventType @default(MEETING)
+  startsAt       DateTime
+  endsAt         DateTime?
+  location       String?
+  meetingUrl     String?
+  notes          String? @db.Text
+  cancelledAt    DateTime?
+  createdAt      DateTime @default(now())
+  updatedAt      DateTime @updatedAt
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  creator        User @relation("CalendarEventCreator", fields: [createdById], references: [id], onDelete: Restrict)
+  responsible    User? @relation("CalendarEventResponsible", fields: [responsibleId], references: [id], onDelete: SetNull)
+  process        LegalProcess? @relation(fields: [processId], references: [id], onDelete: SetNull)
+
+  @@index([organizationId, startsAt])
+  @@index([organizationId, responsibleId, startsAt])
+}
+
+model CourtHoliday {
+  active         Boolean @default(true)
+  id             String @id @default(cuid())
+  organizationId String
+  name           String
+  date           DateTime @db.Date
+  tribunalCode   String?
+  state          String?
+  city           String?
+  notes          String?
+  createdAt      DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  @@index([organizationId, date])
+}
+
+// v0.9.2: integracoes judiciais - novas tabelas; nao altera dados historicos.
+// Os estados sao strings versionadas para evitar DDL destrutivo em implantações futuras.
+model JudicialConnection {
+  id                     String   @id @default(cuid())
+  organizationId         String
+  sourceCode             String
+  environment            String   @default("PRODUCTION")
+  tribunal               String?
+  institutionDocument    String?
+  purpose                String
+  legalBasis             String?
+  authorizationReference String?
+  contractHash           String?
+  contractVerifiedAt     DateTime?
+  reviewedById           String?
+  reviewedAt             DateTime?
+  termsAccepted          Boolean  @default(false)
+  status                 String   @default("PENDING")
+  config                 Json?
+  createdAt              DateTime @default(now())
+  updatedAt              DateTime @updatedAt
+  organization           Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  jobs                   JudicialJob[]
+  records                JudicialRecordVersion[]
+  @@index([organizationId, status, sourceCode])
+}
+
+model JudicialJob {
+  id                String   @id @default(cuid())
+  organizationId    String
+  connectionId      String
+  createdById       String
+  processId         String?
+  requestHash       String
+  idempotencyKey    String?
+  filters           Json
+  windowStart       String
+  windowEnd         String
+  status            String   @default("queued")
+  completeness      String   @default("unknown")
+  nextPage          Int      @default(1)
+  received          Int      @default(0)
+  inserted          Int      @default(0)
+  updated           Int      @default(0)
+  duplicates        Int      @default(0)
+  unlinked          Int      @default(0)
+  attempts          Int      @default(0)
+  retryAt           DateTime?
+  lockedUntil       DateTime?
+  lastErrorCode     String?
+  finishedAt        DateTime?
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+  organization      Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  connection        JudicialConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  @@unique([organizationId, idempotencyKey])
+  @@index([status, retryAt, lockedUntil])
+  @@index([organizationId, connectionId, createdAt])
+}
+
+// Todo snapshot de resposta tem proveniencia e hash; republicacoes nunca substituem o historico.
+model JudicialRecordVersion {
+  id             String   @id @default(cuid())
+  organizationId String
+  connectionId   String
+  namespace      String
+  externalId     String
+  contentHash    String
+  providerVersion String?
+  publicationId  String?
+  original       Json
+  fetchedAt      DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  connection     JudicialConnection @relation(fields: [connectionId], references: [id], onDelete: Cascade)
+  @@unique([organizationId, connectionId, namespace, externalId, contentHash])
+  @@index([organizationId, publicationId])
+}
+
+// Pesquisa de jurisprudencia nao entra automaticamente como andamento do processo.
+model JudicialResearchResult {
+  id             String   @id @default(cuid())
+  organizationId String
+  sourceCode     String
+  externalId     String
+  sourceVersion  String?
+  contentHash    String
+  processNumber  String?
+  title          String?
+  summary        String? @db.Text
+  payload        Json
+  fetchedAt      DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@unique([organizationId, sourceCode, externalId, contentHash])
+  @@index([organizationId, sourceCode, fetchedAt])
+}
+
+model JudicialInternalRead {
+  id             String   @id @default(cuid())
+  organizationId String
+  publicationId  String
+  userId         String
+  readAt         DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId, publicationId, readAt])
+}
+
+// Outbox interna: a existencia do evento nao significa envio de e-mail ou ciencia oficial.
+model JudicialOutbox {
+  id             String   @id @default(cuid())
+  organizationId String
+  dedupeKey      String
+  eventType      String
+  payload        Json
+  status         String   @default("pending")
+  createdAt      DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@unique([organizationId, dedupeKey])
+  @@index([organizationId, status, createdAt])
+}
+
+// Payload de contrato inesperado fica restrito e isolado para analise tecnica.
+model JudicialQuarantine {
+  id             String   @id @default(cuid())
+  organizationId String
+  connectionId   String
+  jobId          String
+  errorCode      String
+  rawPayload     Json
+  occurredAt     DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId, occurredAt])
+}
+
+// Historico operacional e financeiro sao persistentes; nao ha pagamentos reais externos.
+model OfficeIntake {
+  id String @id @default(cuid())
+  organizationId String
+  clientId String?
+  processId String?
+  createdById String
+  responsibleId String?
+  subject String
+  channel String @default("OTHER")
+  description String? @db.Text
+  status IntakeStatus @default(NEW)
+  occurredAt DateTime @default(now())
+  nextContactAt DateTime?
+  closedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  client Person? @relation(fields:[clientId],references:[id],onDelete:SetNull)
+  process LegalProcess? @relation(fields:[processId],references:[id],onDelete:SetNull)
+  creator User @relation("IntakeCreator",fields:[createdById],references:[id],onDelete:Restrict)
+  responsible User? @relation("IntakeResponsible",fields:[responsibleId],references:[id],onDelete:SetNull)
+  agreements FeeAgreement[]
+  entries FinancialEntry[]
+  timeEntries TimeEntry[]
+  @@index([organizationId,status,occurredAt])
+  @@index([organizationId,clientId])
+}
+
+model FeeAgreement {
+  id String @id @default(cuid())
+  organizationId String
+  clientId String
+  processId String?
+  intakeId String?
+  createdById String
+  code String
+  title String
+  feeModel FeeModel @default(FIXED)
+  status FeeStatus @default(DRAFT)
+  amountCents Int @default(0)
+  hourlyRateCents Int?
+  contingencyBasisPoints Int?
+  startsOn DateTime? @db.Date
+  endsOn DateTime? @db.Date
+  notes String? @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  client Person @relation(fields:[clientId],references:[id],onDelete:Restrict)
+  process LegalProcess? @relation(fields:[processId],references:[id],onDelete:SetNull)
+  intake OfficeIntake? @relation(fields:[intakeId],references:[id],onDelete:SetNull)
+  creator User @relation("FeeAgreementCreator",fields:[createdById],references:[id],onDelete:Restrict)
+  entries FinancialEntry[]
+  @@unique([organizationId,code])
+  @@index([organizationId,status,createdAt])
+  @@index([organizationId,clientId])
+}
+
+model FinancialEntry {
+  id String @id @default(cuid())
+  organizationId String
+  createdById String
+  personId String?
+  processId String?
+  intakeId String?
+  agreementId String?
+  kind FinancialKind
+  title String
+  category String @default("Geral")
+  amountCents Int
+  paidCents Int @default(0)
+  dueOn DateTime @db.Date
+  issuedOn DateTime @default(now()) @db.Date
+  notes String? @db.Text
+  cancelledAt DateTime?
+  cancellationReason String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  creator User @relation("FinancialEntryCreator",fields:[createdById],references:[id],onDelete:Restrict)
+  person Person? @relation(fields:[personId],references:[id],onDelete:SetNull)
+  process LegalProcess? @relation(fields:[processId],references:[id],onDelete:SetNull)
+  intake OfficeIntake? @relation(fields:[intakeId],references:[id],onDelete:SetNull)
+  agreement FeeAgreement? @relation(fields:[agreementId],references:[id],onDelete:SetNull)
+  payments FinancialPayment[]
+  @@index([organizationId,kind,dueOn])
+  @@index([organizationId,personId])
+}
+
+model FinancialPayment {
+  id String @id @default(cuid())
+  organizationId String
+  entryId String
+  createdById String
+  idempotencyKey String
+  amountCents Int
+  paidOn DateTime @db.Date
+  method String?
+  reference String?
+  notes String? @db.Text
+  createdAt DateTime @default(now())
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  entry FinancialEntry @relation(fields:[entryId],references:[id],onDelete:Restrict)
+  creator User @relation("FinancialPaymentCreator",fields:[createdById],references:[id],onDelete:Restrict)
+  @@unique([organizationId,idempotencyKey])
+  @@index([organizationId,entryId,paidOn])
+}
+
+model TimeEntry {
+  id String @id @default(cuid())
+  organizationId String
+  userId String
+  approverId String?
+  processId String?
+  intakeId String?
+  taskId String?
+  workOn DateTime @db.Date
+  minutes Int
+  hourlyRateCents Int @default(0)
+  billable Boolean @default(true)
+  status TimeEntryStatus @default(DRAFT)
+  description String
+  submittedAt DateTime?
+  approvedAt DateTime?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+  user User @relation("TimeEntryReporter",fields:[userId],references:[id],onDelete:Restrict)
+  approver User? @relation("TimeEntryApprover",fields:[approverId],references:[id],onDelete:SetNull)
+  process LegalProcess? @relation(fields:[processId],references:[id],onDelete:SetNull)
+  intake OfficeIntake? @relation(fields:[intakeId],references:[id],onDelete:SetNull)
+  task WorkTask? @relation(fields:[taskId],references:[id],onDelete:SetNull)
+  @@index([organizationId,userId,workOn])
+  @@index([organizationId,status,workOn])
+}
+
+model OfficeSettings {
+  organizationId String @id
+  timezone String @default("America/Sao_Paulo")
+  defaultHourlyRateCents Int @default(0)
+  officeEmail String?
+  officePhone String?
+  currency String @default("BRL")
+  updatedAt DateTime @updatedAt
+  organization Organization @relation(fields:[organizationId],references:[id],onDelete:Cascade)
+}
+
+
+// SysADV v0.10.1 - Motor de prazos. Datas juridicas armazenadas como DATE.
+// Regras editaveis sao versionadas; uma versao utilizada nao deve ser alterada.
+model DeadlineRule {
+  id             String   @id @default(cuid())
+  organizationId String
+  code           String
+  version        Int
+  label          String
+  branch         String
+  nature         String
+  countMode      String
+  quantity       Int
+  endRoll        String
+  recess         Boolean @default(false)
+  doubleEligible Boolean @default(false)
+  trigger        String
+  sourceUrl      String
+  caveat         String
+  active         Boolean @default(true)
+  approvedById   String?
+  approvedAt     DateTime?
+  createdAt      DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  deadlines      DeadlineCase[]
+  @@unique([organizationId, code, version])
+  @@index([organizationId, branch, active])
+}
+
+model CourtCalendarCoverage {
+  id             String @id @default(cuid())
+  organizationId String
+  tribunalCode   String
+  state          String
+  city           String @default("")
+  year           Int
+  sourceUrl      String
+  evidence       String
+  verifiedAt     DateTime @default(now())
+  verifiedById   String
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@unique([organizationId, tribunalCode, state, city, year])
+  @@index([organizationId, year])
+}
+
+model CourtSuspension {
+  id             String @id @default(cuid())
+  organizationId String
+  tribunalCode   String
+  state          String
+  city           String @default("")
+  from           DateTime @db.Date
+  to             DateTime @db.Date
+  reason         String
+  evidence       String
+  approvedById   String
+  createdAt      DateTime @default(now())
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@index([organizationId, from, to])
+}
+
+model DeadlineCase {
+  id                 String @id @default(cuid())
+  organizationId     String
+  processId          String?
+  createdById        String
+  ruleId             String?
+  ruleCode           String
+  ruleVersion        Int
+  ruleSnapshot       Json
+  anchorDate         DateTime @db.Date
+  anchorEvidence     String
+  tribunalCode       String
+  state              String
+  city               String @default("")
+  fileFormat         String
+  doubleBasis        String @default("NONE")
+  doubleJustification String?
+  fixedDueAt         DateTime?
+  fixedDueAtRaw      String?
+  internalBusinessDays Int @default(2)
+  legalDueOn         DateTime @db.Date
+  internalDueOn      DateTime @db.Date
+  status             String @default("PENDING_REVIEW")
+  calendarVerified   Boolean @default(false)
+  warnings           Json
+  calculationHash    String
+  reviewerId         String?
+  reviewedAt         DateTime?
+  reviewNotes        String?
+  createdAt          DateTime @default(now())
+  updatedAt          DateTime @updatedAt
+  organization       Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  process            LegalProcess? @relation(fields: [processId], references: [id], onDelete: SetNull)
+  rule               DeadlineRule? @relation(fields: [ruleId], references: [id], onDelete: SetNull)
+  alerts             DeadlineAlert[]
+  @@index([organizationId, legalDueOn, status])
+  @@index([organizationId, processId])
+}
+
+// Alerts stay stored; in-app feed reads only reviewed cases. No external sending in v0.10.1.
+model DeadlineAlert {
+  id             String @id @default(cuid())
+  organizationId String
+  deadlineId     String
+  kind           String
+  scheduledOn    DateTime @db.Date
+  acknowledgedById String?
+  acknowledgedAt DateTime?
+  createdAt      DateTime @default(now())
+  deadline       DeadlineCase @relation(fields: [deadlineId], references: [id], onDelete: Cascade)
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+  @@unique([deadlineId, kind])
+  @@index([organizationId, scheduledOn, acknowledgedAt])
+}
