@@ -33,7 +33,7 @@ export function SettingsPage(){
  async function testAi(){
   setAiBusy(true);setAiError('');setAiSuccess('');
   try{await officeRequest('/office/legal-ai/test',{method:'POST'});
-    setAiSuccess('Conexão com a API OpenAI validada.');
+    setAiSuccess('Chave e acesso ao modelo validados. Este teste não confirma créditos ou limites de geração disponíveis.');
   }catch(e){setAiError(readableError(e));}finally{setAiBusy(false);}
  }
  async function save(e:FormEvent){e.preventDefault();setBusy(true);setError('');try{await officeRequest('/office/settings',{method:'PATCH',body:JSON.stringify({name:form.name,officeEmail:form.officeEmail||null,officePhone:form.officePhone||null,timezone:form.timezone,defaultHourlyRateCents:centsFromInput(form.rate)})});setSuccess('Configurações do escritório atualizadas.');}catch(e){setError(readableError(e));}finally{setBusy(false);}}
