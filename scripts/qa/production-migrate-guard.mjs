@@ -1,5 +1,6 @@
 #!/usr/bin/env node
 // Production release migration gate: Prisma baseline verification BEFORE any DDL.
+// Railway API now watches scripts/qa so release safety updates trigger a fresh build.
 // Explicit opt-in is required; this command is never invoked by the API itself.
 import {spawnSync} from 'node:child_process';
 import {readFileSync,readdirSync} from 'node:fs';
