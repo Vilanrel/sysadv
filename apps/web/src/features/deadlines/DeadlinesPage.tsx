@@ -101,7 +101,7 @@ export function DeadlinesPage(){const fb=useFeedback();
          <Link to="/publications" className="ghost">Abrir publicações</Link>
        </article>)}</div>}
      <p className="muted">Não há cálculo ou criação automática de prazo a partir dessas publicações. A revisão jurídica e o calendário do tribunal permanecem obrigatórios.</p>
-   </section>
+   </section>}
    <label>Data do ato / ciência comprovada *<input type="date" required value={form.anchorDate} onChange={e=>update('anchorDate',e.target.value)}/></label>
    <label>Tipo de autos<select value={form.fileFormat} onChange={e=>update('fileFormat',e.target.value)}><option value="ELECTRONIC">Eletrônico</option><option value="PAPER">Físico</option></select></label>
    <label className="span-full">Evidência do marco inicial *<textarea required minLength={8} rows={2} placeholder="Ex.: publicação de 06/11/2026, certidão no processo, intimação..." value={form.anchorEvidence} onChange={e=>update('anchorEvidence',e.target.value)}/></label>
