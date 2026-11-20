@@ -296,7 +296,7 @@ export async function deadlineRoutes(app:FastifyInstance){
   try{
    const result=await prisma.$transaction(async tx=>{
     // Serialise concurrent revocation attempts, avoiding duplicate audit events.
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${id.data}))`;
+    await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${id.data}))`;
     const row=await tx.courtSuspension.findFirst({
      where:{id:id.data,organizationId:req.auth.organizationId},
     });
@@ -434,8 +434,24 @@ export async function deadlineRoutes(app:FastifyInstance){
   return {items};
  });
  app.post('/deadlines/alerts/:id/ack',{preHandler:[authenticate,requirePermission('calendar.write')]},async(req:any,reply)=>{
-  const updated=await prisma.deadlineAlert.updateMany({where:{id:req.params.id,organizationId:req.auth.organizationId,acknowledgedAt:null,deadline:{status:'APPROVED'}},data:{acknowledgedAt:new Date(),acknowledgedById:req.auth.userId}});
-  if(!updated.count)return reply.code(404).send({error:'NOT_FOUND'});
+  const id=z.string().trim().min(1).max(120).safeParse(req.params?.id);
+  if(!id.success)return reply.code(400).send({error:'INVALID_INPUT'});
+  const updated=await prisma.$transaction(async tx=>{
+   const item=await tx.deadlineAlert.updateMany({
+    where:{id:id.data,organizationId:req.auth.organizationId,
+      acknowledgedAt:null,deadline:{status:'APPROVED'}},
+    data:{acknowledgedAt:new Date(),acknowledgedById:req.auth.userId},
+   });
+   if(item.count){
+    await tx.notificationInbox.updateMany({
+     where:{organizationId:req.auth.organizationId,recipientId:req.auth.userId,
+      sourceType:'DEADLINE_ALERT',sourceId:id.data,readAt:null},
+     data:{readAt:new Date()},
+    });
+   }
+   return item.count;
+  });
+  if(!updated)return reply.code(404).send({error:'NOT_FOUND'});
   return {acknowledged:true};
  });
 }
