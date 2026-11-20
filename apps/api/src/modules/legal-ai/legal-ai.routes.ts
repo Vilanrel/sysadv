@@ -65,8 +65,9 @@ export async function legalAiRoutes(app:FastifyInstance) {
         let providerCode:string|undefined;
         if(response.status===429){
           try{
-            const payload=await response.json() as {error?:{code?:unknown}};
+            const payload=await response.json() as {error?:{code?:unknown;type?:unknown}};
             if(typeof payload?.error?.code==='string')providerCode=payload.error.code;
+            else if(typeof payload?.error?.type==='string')providerCode=payload.error.type;
           }catch{/* Some provider errors have no JSON body. */}
         }
         const failure=legalAiProviderFailure(response.status,providerCode);
