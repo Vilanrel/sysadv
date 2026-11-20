@@ -89,3 +89,5 @@ jobs:
         run: npx tsx scripts/qa/legal-ai-http-smoke.ts
       - name: Verify judicial-publication references with authenticated deadline API
         run: npx tsx scripts/qa/deadline-publication-http-smoke.ts
+      - name: Verify scoped court holidays and deadline recalculation via HTTP
+        run: npx tsx scripts/qa/court-holidays-http-smoke.ts
