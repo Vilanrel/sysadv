@@ -9,6 +9,20 @@ type Preview={dueDate:string|null;internalDate:string|null;fixedDueAt:string|nul
 type Deadline={id:string;ruleCode:string;legalDueOn:string;internalDueOn:string;status:string;reviewedAt:string|null;warnings:string[];process?:{id:string;npu:string}|null};
 type Alert={id:string;kind:string;scheduledOn:string;deadline:{id:string;ruleCode:string;legalDueOn:string;process?:{id:string;npu:string}|null}};
 type Process={id:string;npu:string};
+type HolidayScope='NATIONAL'|'STATE'|'TRIBUNAL'|'CITY';
+type Holiday={id:string;name:string;date:string;tribunalCode:string|null;state:string|null;city:string|null;notes:string|null;active:boolean};
+const holidayScopeLabels:Record<HolidayScope,string>={
+  NATIONAL:'Nacional',STATE:'Estadual',TRIBUNAL:'Tribunal',CITY:'Municipal',
+};
+function holidaySource(notes:string|null):string{
+  if(!notes)return 'Sem evidência documentada';
+  try{
+    const value=JSON.parse(notes) as {sourceUrl?:string;evidence?:string};
+    if(typeof value.sourceUrl==='string'&&typeof value.evidence==='string')
+      return 'Fonte: '+value.sourceUrl+' — Evidência: '+value.evidence;
+  }catch{}
+  return notes;
+}
 type PublicationReference={
   id:string;npu:string;title:string|null;actType:string;tribunal:string|null;
   availableOn:string|null;publishedOn:string|null;sourceUrl:string|null;
@@ -44,6 +58,12 @@ export function DeadlinesPage(){const fb=useFeedback();
  const {has}=useAuth();const [tab,setTab]=useState<'calculate'|'cases'|'rules'|'alerts'>('calculate');
  const [rules,setRules]=useState<Rule[]>([]);const [processes,setProcesses]=useState<Process[]>([]);const [cases,setCases]=useState<Deadline[]>([]);
  const [alerts,setAlerts]=useState<Alert[]>([]);const [form,setForm]=useState<Form>(defaultForm);const [preview,setPreview]=useState<Preview|null>(null);
+ const [holidayYear,setHolidayYear]=useState(new Date().getFullYear());
+ const [holidays,setHolidays]=useState<Holiday[]>([]);
+ const [holidayForm,setHolidayForm]=useState({
+   scope:'CITY' as HolidayScope,name:'',date:'',tribunalCode:'TJSP',state:'SP',
+   city:'',sourceUrl:'',evidence:'',
+ });
  const [publicationReferences,setPublicationReferences]=useState<PublicationReference[]>([]);
  const [publicationLoading,setPublicationLoading]=useState(false);
  const [publicationError,setPublicationError]=useState('');
@@ -52,10 +72,16 @@ export function DeadlinesPage(){const fb=useFeedback();
  const [newRule,setNewRule]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('');
  const selected=useMemo(()=>rules.find(r=>r.code===form.ruleCode&&r.approved)||rules.find(r=>r.code===form.ruleCode),[rules,form.ruleCode]);
  const reload=useCallback(async()=>{
-   const requests=[jsonRequest('/deadlines/rules'),jsonRequest('/deadlines'),jsonRequest('/deadlines/alerts'),has('process.read')?jsonRequest('/processes'):Promise.resolve([])];
-   const [r,d,a,p]=await Promise.all(requests);
-   setRules(r.rules??[]);setCases(d.items??[]);setAlerts(a.items??[]);setProcesses(Array.isArray(p)?p:Array.isArray(p.items)?p.items:[]);
- },[has]);
+   const requests=[
+     jsonRequest('/deadlines/rules'),jsonRequest('/deadlines'),jsonRequest('/deadlines/alerts'),
+     has('process.read')?jsonRequest('/processes'):Promise.resolve([]),
+     jsonRequest('/deadlines/holidays?year='+holidayYear),
+   ];
+   const [r,d,a,p,h]=await Promise.all(requests);
+   setRules(r.rules??[]);setCases(d.items??[]);setAlerts(a.items??[]);
+   setProcesses(Array.isArray(p)?p:Array.isArray(p.items)?p.items:[]);
+   setHolidays(h.items??[]);
+ },[has,holidayYear]);
  useEffect(()=>{void reload().catch(e=>setError(e instanceof Error?e.message:'Não foi possível carregar os prazos.'));},[reload]);
  useEffect(()=>{
    let active=true;
@@ -80,6 +106,29 @@ export function DeadlinesPage(){const fb=useFeedback();
  const cancel=async(item:Deadline)=>{const text=(await fb.prompt({title:'Motivo do cancelamento (mínimo 12 caracteres):',input:{label:'Texto',required:true}}));if(!text)return;void perform(()=>jsonRequest(`/deadlines/${item.id}/cancel`,'POST',{reason:text}), 'Prazo cancelado; histórico preservado.');};
  const approveRule=async(rule:Rule)=>{if(!rule.id||!(await fb.confirm({title:`Homologar versão ${rule.version} de ${rule.code}?`,tone:'danger'})))return;void perform(()=>jsonRequest(`/deadlines/rules/${rule.id}/approve`,'POST'), 'Regra aprovada para uso no escritório.');};
  const acknowledge=(id:string)=>void perform(()=>jsonRequest(`/deadlines/alerts/${id}/ack`,'POST'), 'Alerta marcado como lido.');
+ const addHoliday=(e:FormEvent)=>{
+   e.preventDefault();
+   const scope=holidayForm.scope;
+   const body={
+     scope,name:holidayForm.name,date:holidayForm.date,
+     sourceUrl:holidayForm.sourceUrl,evidence:holidayForm.evidence,
+     ...(scope!=='NATIONAL'?{state:holidayForm.state}:{}),
+     ...(scope==='TRIBUNAL'||scope==='CITY'?{tribunalCode:holidayForm.tribunalCode}:{}),
+     ...(scope==='CITY'?{city:holidayForm.city}:{}),
+   };
+   const entryYear=Number(holidayForm.date.slice(0,4));
+   void perform(async()=>{
+     await jsonRequest('/deadlines/holidays','POST',body);
+     setHolidayForm(v=>({...v,name:'',date:'',sourceUrl:'',evidence:''}));
+     if(entryYear>=2000&&entryYear<=2100)setHolidayYear(entryYear);
+   },'Feriado cadastrado com fonte documental. Confira a cobertura anual antes de aprovar prazos.');
+ };
+ const deactivateHoliday=async(item:Holiday)=>{
+   const reason=await fb.prompt({title:'Desativar feriado '+item.name+'? Informe o motivo com pelo menos 12 caracteres.',input:{label:'Motivo da correção',required:true}});
+   if(!reason)return;
+   void perform(()=>jsonRequest(`/deadlines/holidays/${encodeURIComponent(item.id)}/deactivate`,'POST',{reason}),
+     'Feriado desativado, mantendo o histórico de auditoria. Pré-calculos existentes deverão ser revistos.');
+ };
  return <div className="deadline-page"><div className="page-heading"><div><span className="eyebrow">Gestão jurídica · motor de contagem versionado</span><h1>Gerenciador de prazos</h1><p>Contagem por matéria, datas jurídicas auditáveis e revisão antes da confirmação.</p></div><span className="deadline-safety">Prévia não substitui conferência profissional</span></div>
   <div className="deadline-nav" role="tablist" aria-label="Gerenciamento de prazos">{([['calculate','Calcular prazo'],['cases','Prazos do escritório'],['rules','Regras e calendários'],['alerts',`Alertas (${alerts.length})`]] as const).map(([key,label])=><button key={key} className={tab===key?'active':''} role="tab" aria-selected={tab===key} onClick={()=>{setTab(key);setError('');}}>{label}</button>)}</div>
   {error&&<div role="alert" className="alert">{error}</div>}{notice&&<div role="status" className="notice-success">{notice}</div>}
@@ -122,6 +171,35 @@ export function DeadlinesPage(){const fb=useFeedback();
     <div className="actions span-full"><button className="primary" disabled={busy}>Salvar nova versão</button></div>
    </form>}
    <div className="deadline-rules-list">{rules.map(r=><article key={`${r.code}-${r.version}`}><div><strong>{r.label}</strong><p>{labels[r.branch]??r.branch} · {labels[r.nature]??r.nature} · versão {r.version} · {r.preset?'Modelo de referência':'Personalizada'}</p></div><div className="actions"><span className={`deadline-status ${r.approved?'deadline-approved':'deadline-pending_review'}`}>{r.approved?'Disponível':'Não aprovada'}</span>{!r.approved&&r.id&&has('calendar.manage')&&<button className="ghost" onClick={()=>approveRule(r)}>Aprovar</button>}</div></article>)}</div>
+   </section>
+   <section className="panel">
+     <div className="panel-head"><div><h2>Feriados judiciais e locais</h2>
+       <p>Registre feriados nacionais, estaduais, do tribunal e municipais, sempre com fonte documental. Correções preservam a auditoria.</p>
+     </div></div>
+     {has('calendar.manage')&&<form className="entity-form" onSubmit={addHoliday}>
+       <label>Abrangência<select value={holidayForm.scope} onChange={e=>setHolidayForm(v=>({...v,scope:e.target.value as HolidayScope}))}>
+         {(Object.keys(holidayScopeLabels) as HolidayScope[]).map(key=><option key={key} value={key}>{holidayScopeLabels[key]}</option>)}
+       </select></label>
+       <label>Data do feriado<input type="date" required value={holidayForm.date} onChange={e=>setHolidayForm(v=>({...v,date:e.target.value}))}/></label>
+       <label className="span-full">Nome do feriado<input required minLength={4} maxLength={160} value={holidayForm.name} onChange={e=>setHolidayForm(v=>({...v,name:e.target.value}))}/></label>
+       {holidayForm.scope!=='NATIONAL'&&<label>UF<input required maxLength={2} value={holidayForm.state} onChange={e=>setHolidayForm(v=>({...v,state:e.target.value.toUpperCase()}))}/></label>}
+       {(holidayForm.scope==='TRIBUNAL'||holidayForm.scope==='CITY')&&<label>Tribunal<input required maxLength={24} value={holidayForm.tribunalCode} onChange={e=>setHolidayForm(v=>({...v,tribunalCode:e.target.value.toUpperCase()}))}/></label>}
+       {holidayForm.scope==='CITY'&&<label>Cidade<input required minLength={2} maxLength={100} value={holidayForm.city} onChange={e=>setHolidayForm(v=>({...v,city:e.target.value}))}/></label>}
+       <label className="span-full">URL da fonte oficial (HTTPS)<input type="url" required pattern="https://.*" value={holidayForm.sourceUrl} onChange={e=>setHolidayForm(v=>({...v,sourceUrl:e.target.value}))} placeholder="https://..."/></label>
+       <label className="span-full">Evidência documental<textarea required minLength={12} rows={2} value={holidayForm.evidence} onChange={e=>setHolidayForm(v=>({...v,evidence:e.target.value}))} placeholder="Ato normativo, portaria, calendário ou decisão oficial conferida"/></label>
+       <div className="actions span-full"><button className="primary" disabled={busy}>Registrar feriado</button></div>
+     </form>}
+     <div className="actions"><label>Ano da consulta <input type="number" min={2000} max={2100} value={holidayYear} onChange={e=>{const year=Number(e.target.value);if(year>=2000&&year<=2100)setHolidayYear(year);}}/></label></div>
+     {holidays.length===0?<p className="muted">Nenhum feriado cadastrado neste ano. Isso não comprova inexistência de feriados.</p>:
+       <div className="deadline-rules-list">{holidays.map(item=><article key={item.id}>
+         <div><strong>{item.name} · {display(item.date)}</strong>
+           <p>{item.tribunalCode??'Todos os tribunais'} · {item.state??'Brasil'} · {item.city??'Todas as cidades'}</p>
+           <p className="muted">{holidaySource(item.notes)}</p>
+           <span className={`deadline-status ${item.active?'deadline-approved':'deadline-cancelled'}`}>{item.active?'Ativo':'Inativo'}</span>
+         </div>
+         {item.active&&has('calendar.manage')&&<button className="ghost" type="button" disabled={busy} onClick={()=>void deactivateHoliday(item)}>Desativar</button>}
+       </article>)}</div>}
+     <p className="muted">O registro de um feriado não valida todo o calendário anual. Alterações nos feriados exigem revisar os cálculos pendentes.</p>
    </section><section className="panel"><div className="panel-head"><h2>Validação de calendário local</h2></div><p className="muted">Cadastre feriados e suspensões na <Link to="/agenda">Agenda</Link>; após conferir o calendário oficial completo do tribunal e ano, registre a evidência abaixo. Esta ação não consulta uma API externa.</p>
    <form className="entity-form" onSubmit={e=>{e.preventDefault();void perform(()=>jsonRequest('/deadlines/calendar-coverage','POST',coverage),'Cobertura do calendário registrada pelo responsável.');}}>
     <label>Tribunal<input required value={coverage.tribunalCode} onChange={e=>setCoverage(v=>({...v,tribunalCode:e.target.value.toUpperCase()}))}/></label><label>UF<input required maxLength={2} value={coverage.state} onChange={e=>setCoverage(v=>({...v,state:e.target.value.toUpperCase()}))}/></label><label>Cidade<input value={coverage.city} onChange={e=>setCoverage(v=>({...v,city:e.target.value}))}/></label><label>Ano<input type="number" min={2000} max={2100} value={coverage.year} onChange={e=>setCoverage(v=>({...v,year:Number(e.target.value)}))}/></label>
