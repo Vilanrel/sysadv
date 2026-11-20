@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { PrismaClient } from '@prisma/client';
 import { applyIntakeWorkflow } from '../../apps/api/src/modules/workflows/workflow-engine.js';
+import {getLegalAiSettings,resolveLegalAiConfig,saveLegalAiSettings} from '../../apps/api/src/modules/legal-ai/legal-ai-settings.js';
 
 /** Executar SOMENTE em PostgreSQL descartavel: criacao e remocao de registros de teste. */
 // Protecao obrigatoria: NUNCA execute este script em ambientes ou bancos nao descartaveis.
@@ -45,7 +46,29 @@ try {
   const info=await prisma.notificationInbox.findFirst({where:{organizationId:orgA,recipientId:a.id}});
   assert.ok(info);
   assert.equal(info.sourceType,'WORKFLOW');
-  console.log(JSON.stringify({ok:true,tenants:2,workflowRuns:1,notifications:1,idempotent:true}));
+  // RF: per-organization OpenAI configuration is not visible across tenants.
+  const qaKey='sk-synthetic-not-a-real-secret-'+process.pid;
+  const configured=await saveLegalAiSettings(orgA,{
+    enabled:true,model:'gpt-4.1-mini',apiKey:qaKey,
+  });
+  assert.equal(configured.keyConfigured,true);
+  const stored=await prisma.legalAiSettings.findUniqueOrThrow({where:{organizationId:orgA}});
+  assert.notEqual(stored.encryptedApiKey,qaKey);
+  assert.ok(stored.encryptedApiKey?.startsWith('v1.'));
+  const officeA=await getLegalAiSettings(orgA);
+  assert.deepEqual({enabled:officeA.enabled,source:officeA.source,keyConfigured:officeA.keyConfigured},
+    {enabled:true,source:'OFFICE',keyConfigured:true});
+  assert.ok(!('apiKey' in officeA));
+  const resolved=await resolveLegalAiConfig(orgA);
+  assert.equal(resolved.apiKey,qaKey);
+  const tenantB=await getLegalAiSettings(orgB);
+  assert.equal(tenantB.keyConfigured,false);
+  assert.equal(await prisma.legalAiSettings.count({where:{organizationId:orgB}}),0);
+  await saveLegalAiSettings(orgA,{enabled:false,model:'gpt-4.1-mini',clearApiKey:true});
+  assert.equal((await getLegalAiSettings(orgA)).keyConfigured,false);
+  assert.equal((await resolveLegalAiConfig(orgA)).apiKey,undefined);
+  console.log(JSON.stringify({ok:true,tenants:2,workflowRuns:1,notifications:1,idempotent:true,
+    legalAiSettingsEncrypted:true,tenantIsolation:true,keyRevocation:true}));
 } finally {
   // Limpeza na ordem das FKs, sem confiar na ordem das cascatas do PostgreSQL.
   const scope={organizationId:{in:[orgA,orgB]}};
