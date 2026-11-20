@@ -9,9 +9,14 @@ type Preview={dueDate:string|null;internalDate:string|null;fixedDueAt:string|nul
 type Deadline={id:string;ruleCode:string;legalDueOn:string;internalDueOn:string;status:string;reviewedAt:string|null;warnings:string[];process?:{id:string;npu:string}|null};
 type Alert={id:string;kind:string;scheduledOn:string;deadline:{id:string;ruleCode:string;legalDueOn:string;process?:{id:string;npu:string}|null}};
 type Process={id:string;npu:string};
+type PublicationReference={
+  id:string;npu:string;title:string|null;actType:string;tribunal:string|null;
+  availableOn:string|null;publishedOn:string|null;sourceUrl:string|null;
+  source:{code:string;name:string}|null;
+};
 type Form={ruleCode:string;processId:string;anchorDate:string;anchorEvidence:string;tribunalCode:string;state:string;city:string;fileFormat:'PAPER'|'ELECTRONIC';doubleBasis:'NONE'|'PUBLIC_ENTITY'|'PUBLIC_DEFENDER'|'SEPARATE_COUNSEL';doubleJustification:string;fixedDueAt:string;fixedOffset:string;internalBusinessDays:number;natureConfirmation:'PROCESSUAL'|'MATERIAL'|'ADMINISTRATIVE';natureAcknowledged:boolean};
 const today = () => {const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
-const defaultForm:Form={ruleCode:'CIVIL_CONTESTACAO',processId:'',anchorDate:today(),anchorEvidence:'',tribunalCode:'TJSP',state:'SP',city:'',fileFormat:'ELECTRONIC',doubleBasis:'NONE',doubleJustification:'',fixedDueAt:'',fixedOffset:'-03:00',internalBusinessDays:2,natureConfirmation:'PROCESSUAL',natureAcknowledged:false};
+const defaultForm:Form={ruleCode:'CIVIL_CONTESTACAO',processId:'',anchorDate:'',anchorEvidence:'',tribunalCode:'TJSP',state:'SP',city:'',fileFormat:'ELECTRONIC',doubleBasis:'NONE',doubleJustification:'',fixedDueAt:'',fixedOffset:'-03:00',internalBusinessDays:2,natureConfirmation:'PROCESSUAL',natureAcknowledged:false};
 const display=(d:string|null|undefined)=>d?d.slice(0,10).split('-').reverse().join('/'):'—';
 const labels:Record<string,string>={CIVIL:'Cível',BUSINESS:'Empresarial',CRIMINAL:'Penal',LABOR:'Trabalhista',SOCIAL_SECURITY_ADMIN:'Previdenciário administrativo',INSOLVENCY:'Recuperação e falência',
   PROCESSUAL:'Processual',MATERIAL:'Material',ADMINISTRATIVE:'Administrativo',
@@ -40,6 +45,9 @@ export function DeadlinesPage(){const fb=useFeedback();
  const {has}=useAuth();const [tab,setTab]=useState<'calculate'|'cases'|'rules'|'alerts'>('calculate');
  const [rules,setRules]=useState<Rule[]>([]);const [processes,setProcesses]=useState<Process[]>([]);const [cases,setCases]=useState<Deadline[]>([]);
  const [alerts,setAlerts]=useState<Alert[]>([]);const [form,setForm]=useState<Form>(defaultForm);const [preview,setPreview]=useState<Preview|null>(null);
+ const [publicationReferences,setPublicationReferences]=useState<PublicationReference[]>([]);
+ const [publicationLoading,setPublicationLoading]=useState(false);
+ const [publicationError,setPublicationError]=useState('');
  const [coverage,setCoverage]=useState({tribunalCode:'TJSP',state:'SP',city:'',year:new Date().getFullYear(),sourceUrl:'',evidence:''});
  const [ruleForm,setRuleForm]=useState({code:'',label:'',branch:'CIVIL',nature:'PROCESSUAL',countMode:'BUSINESS_DAYS',quantity:5,endRoll:'NONE',recess:true,doubleEligible:false,trigger:'',sourceUrl:'',caveat:'',active:true});
  const [newRule,setNewRule]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('');
@@ -50,6 +58,17 @@ export function DeadlinesPage(){const fb=useFeedback();
    setRules(r.rules??[]);setCases(d.items??[]);setAlerts(a.items??[]);setProcesses(Array.isArray(p)?p:Array.isArray(p.items)?p.items:[]);
  },[has]);
  useEffect(()=>{void reload().catch(e=>setError(e instanceof Error?e.message:'Não foi possível carregar os prazos.'));},[reload]);
+ useEffect(()=>{
+   let active=true;
+   setPublicationReferences([]);setPublicationError('');
+   if(!form.processId||!has('publication.read')){setPublicationLoading(false);return;}
+   setPublicationLoading(true);
+   void jsonRequest('/deadlines/publications?processId='+encodeURIComponent(form.processId))
+     .then(data=>{if(active)setPublicationReferences(Array.isArray(data.items)?data.items:[]);})
+     .catch(e=>{if(active)setPublicationError(e instanceof Error?e.message:'Falha ao consultar publicações.');})
+     .finally(()=>{if(active)setPublicationLoading(false);});
+   return ()=>{active=false;};
+ },[form.processId,has]);
  const update=(key:keyof Form,value:string|number|boolean)=>{setForm(v=>({...v,[key]:value}));setPreview(null);setError('');};
  const payload=()=>({ruleCode:form.ruleCode,processId:form.processId||null,anchorDate:form.anchorDate,anchorEvidence:form.anchorEvidence,
   tribunalCode:form.tribunalCode,state:form.state,city:form.city,fileFormat:form.fileFormat,doubleBasis:form.doubleBasis,
@@ -71,6 +90,19 @@ export function DeadlinesPage(){const fb=useFeedback();
    <label className="deadline-check"><input type="checkbox" required checked={form.natureAcknowledged} onChange={e=>update('natureAcknowledged',e.target.checked)}/> Conferi a natureza e a regra aplicável</label>
    <div className="deadline-rule-description span-full">{selected&&<><strong>{labels[selected.nature]??selected.nature} · {selected.countMode==='BUSINESS_DAYS'?'Dias úteis':selected.countMode==='CALENDAR_DAYS'?'Dias corridos':selected.countMode==='YEARS'?'Anos':'Data da audiência'}</strong><p>{selected.trigger}. {selected.caveat}</p><a target="_blank" rel="noreferrer" href={selected.sourceUrl}>Ver referência legal</a></>}</div>
    <label className="span-full">Processo (opcional)<select value={form.processId} onChange={e=>update('processId',e.target.value)}><option value="">Sem processo vinculado</option>{processes.map(p=><option key={p.id} value={p.id}>{p.npu}</option>)}</select></label>
+   {form.processId&&has('publication.read')&&<section className="span-full deadline-publication-references" aria-label="Publicações do processo para conferência">
+     <h3>Publicações vinculadas — consulta para conferência</h3>
+     <p className="muted">A data de disponibilização e a data de publicação são metadados distintos. Nenhuma delas confirma, por si só, ciência ou início de prazo. Confira a publicação e informe manualmente o marco e sua evidência.</p>
+     {publicationLoading?<p>Consultando publicações vinculadas…</p>:publicationError?<p role="alert" className="alert">{publicationError}</p>:publicationReferences.length===0?<p className="muted">Nenhuma publicação vinculada a este processo. Isso não significa inexistência de atos ou intimações.</p>:
+       <div className="deadline-rules-list">{publicationReferences.map(p=><article key={p.id}>
+         <div><strong>{p.title??p.actType}</strong>
+           <p>{p.tribunal??'Tribunal não informado'} · {p.source?.name??'Origem não especificada'}</p>
+           <p>Disponibilização: <strong>{display(p.availableOn)}</strong> · Publicação: <strong>{display(p.publishedOn)}</strong></p>
+         </div>
+         <Link to={`/publications/${encodeURIComponent(p.id)}`} className="ghost">Conferir documento</Link>
+       </article>)}</div>}
+     <p className="muted">Não há cálculo ou criação automática de prazo a partir dessas publicações. A revisão jurídica e o calendário do tribunal permanecem obrigatórios.</p>
+   </section>
    <label>Data do ato / ciência comprovada *<input type="date" required value={form.anchorDate} onChange={e=>update('anchorDate',e.target.value)}/></label>
    <label>Tipo de autos<select value={form.fileFormat} onChange={e=>update('fileFormat',e.target.value)}><option value="ELECTRONIC">Eletrônico</option><option value="PAPER">Físico</option></select></label>
    <label className="span-full">Evidência do marco inicial *<textarea required minLength={8} rows={2} placeholder="Ex.: publicação de 06/11/2026, certidão no processo, intimação..." value={form.anchorEvidence} onChange={e=>update('anchorEvidence',e.target.value)}/></label>
