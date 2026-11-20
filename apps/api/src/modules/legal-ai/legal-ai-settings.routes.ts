@@ -36,7 +36,7 @@ export async function legalAiSettingsRoutes(app:FastifyInstance){
     try{
       const url='https://api.openai.com/v1/models/'+encodeURIComponent(config.model);
       const response=await fetch(url,{method:'GET',headers:{Authorization:'Bearer '+config.apiKey},signal:controller.signal});
-      if(!response.ok)return reply.code(502).send({error:'LEGAL_AI_CONNECTION_FAILED',providerStatus:response.status});
+      if(!response.ok){const failure=legalAiProviderFailure(response.status);return reply.code(failure.status).send({error:failure.error});}
       return {connected:true,model:config.model};
     }catch{
       return reply.code(502).send({error:'LEGAL_AI_CONNECTION_FAILED'});
