@@ -87,3 +87,5 @@ jobs:
         run: npx tsx scripts/qa/fenalaw-db-smoke.ts
       - name: Verify authenticated legal AI flows with mocked provider
         run: npx tsx scripts/qa/legal-ai-http-smoke.ts
+      - name: Verify judicial-publication references with authenticated deadline API
+        run: npx tsx scripts/qa/deadline-publication-http-smoke.ts
