@@ -27,6 +27,27 @@ const createRuleSchema=z.object({code:ruleCode,label:z.string().trim().min(5).ma
  endRoll:z.enum(['NONE','NEXT_BUSINESS']),recess:z.boolean(),doubleEligible:z.boolean(),trigger:z.string().trim().min(12).max(500),sourceUrl:z.string().url().max(600),caveat:z.string().trim().min(12).max(800),active:z.boolean().default(true)}).strict();
 const coverageSchema=z.object({tribunalCode:courtCode,state:stateCode,city:cityCode,year:z.number().int().min(2000).max(2100),sourceUrl:z.string().url().max(600),evidence:z.string().trim().min(12).max(800)}).strict();
 const suspensionSchema=z.object({tribunalCode:courtCode,state:stateCode,city:cityCode,from:dayString,to:dayString,reason:z.string().trim().min(5).max(200),evidence:z.string().trim().min(12).max(800)}).strict().refine(x=>x.to>=x.from,{message:'INVALID_RANGE'});
+
+const holidaySchema=z.object({
+ name:z.string().trim().min(4).max(160),
+ date:dayString,
+ scope:z.enum(['NATIONAL','STATE','TRIBUNAL','CITY']),
+ state:stateCode.optional(),
+ tribunalCode:courtCode.optional(),
+ city:z.string().trim().min(2).max(100).transform(v=>v.toLocaleUpperCase('pt-BR')).optional(),
+ sourceUrl:z.string().url().max(600).refine(x=>x.startsWith('https://'),{message:'HTTPS_SOURCE_REQUIRED'}),
+ evidence:z.string().trim().min(12).max(800),
+}).strict().superRefine((v,ctx)=>{
+ const allowed={
+  NATIONAL:!v.state&&!v.tribunalCode&&!v.city,
+  STATE:!!v.state&&!v.tribunalCode&&!v.city,
+  TRIBUNAL:!!v.state&&!!v.tribunalCode&&!v.city,
+  CITY:!!v.state&&!!v.tribunalCode&&!!v.city,
+ }[v.scope];
+ if(!allowed)ctx.addIssue({code:z.ZodIssueCode.custom,path:['scope'],message:'INVALID_HOLIDAY_SCOPE'});
+});
+const deactivateHolidaySchema=z.object({reason:z.string().trim().min(12).max(500)}).strict();
+
 const normalizeScope=(scope:{tribunalCode:string;state:string;city:string}) => ({tribunalCode:scope.tribunalCode.toUpperCase(),state:scope.state.toUpperCase(),city:scope.city.toLocaleUpperCase('pt-BR')});
 function apiError(reply:any,e:unknown){
   if(e instanceof DeadlineRuleError)return reply.code(422).send({error:e.code});
@@ -121,6 +142,78 @@ export async function deadlineRoutes(app:FastifyInstance){
     create:{...data,city,organizationId:req.auth.organizationId,verifiedById:req.auth.userId},update:{sourceUrl:data.sourceUrl,evidence:data.evidence,verifiedAt:new Date(),verifiedById:req.auth.userId}});
    await audit(tx,req.auth,'DEADLINE_CALENDAR_VERIFIED','CourtCalendarCoverage',result.id,{tribunalCode:result.tribunalCode,state:result.state,city:result.city,year:result.year});return result;
   });return reply.code(201).send(entry);
+ });
+
+ // Calendars are entered by authorized staff against an external source.
+ // This does not assert that an entire year or tribunal calendar is verified.
+ app.get('/deadlines/holidays',{preHandler:[authenticate,requirePermission('calendar.read')]},async(req:any,reply)=>{
+  const parsed=z.object({year:z.coerce.number().int().min(2000).max(2100).optional()}).strict().safeParse(req.query??{});
+  if(!parsed.success)return reply.code(400).send({error:'INVALID_INPUT'});
+  const year=parsed.data.year??Number(brToday().slice(0,4));
+  const rows=await prisma.courtHoliday.findMany({
+   where:{
+    organizationId:req.auth.organizationId,
+    date:{gte:dateOnly(year+'-01-01'),lt:dateOnly((year+1)+'-01-01')},
+   },
+   select:{id:true,name:true,date:true,tribunalCode:true,state:true,city:true,notes:true,active:true},
+   orderBy:[{date:'asc'},{name:'asc'}],take:500,
+  });
+  return {year,items:rows.map(row=>({...row,date:row.date.toISOString().slice(0,10)})),
+   notice:'Registros informados pelo escritorio; valide a fonte oficial e a cobertura de cada tribunal/ano antes de aprovar prazos.'};
+ });
+ app.post('/deadlines/holidays',{preHandler:[authenticate,requirePermission('calendar.manage')]},async(req:any,reply)=>{
+  const parsed=holidaySchema.safeParse(req.body);
+  if(!parsed.success)return reply.code(400).send({error:'INVALID_INPUT',details:parsed.error.flatten()});
+  const data=parsed.data;
+  const scope={
+   tribunalCode:data.scope==='TRIBUNAL'||data.scope==='CITY'?data.tribunalCode!:null,
+   state:data.scope==='NATIONAL'?null:data.state!,
+   city:data.scope==='CITY'?data.city!:null,
+  };
+  const identity={organizationId:req.auth.organizationId,date:dateOnly(data.date),name:data.name,...scope};
+  const existing=await prisma.courtHoliday.findFirst({where:{...identity,active:true},select:{id:true}});
+  if(existing)return reply.code(409).send({error:'HOLIDAY_ALREADY_EXISTS'});
+  const item=await prisma.$transaction(async tx=>{
+   const created=await tx.courtHoliday.create({data:{
+    ...identity,active:true,
+    notes:JSON.stringify({scope:data.scope,sourceUrl:data.sourceUrl,evidence:data.evidence}),
+   }});
+   await audit(tx,req.auth,'DEADLINE_HOLIDAY_CREATED','CourtHoliday',created.id,{
+    name:data.name,date:data.date,scope:data.scope,tribunalCode:created.tribunalCode,
+    state:created.state,city:created.city,sourceUrl:data.sourceUrl,evidence:data.evidence,
+   });
+   return created;
+  });
+  return reply.code(201).send({id:item.id,active:item.active,date:data.date,scope:data.scope});
+ });
+ app.post('/deadlines/holidays/:id/deactivate',{preHandler:[authenticate,requirePermission('calendar.manage')]},async(req:any,reply)=>{
+  const parsed=deactivateHolidaySchema.safeParse(req.body);
+  if(!parsed.success)return reply.code(400).send({error:'INVALID_INPUT'});
+  const id=z.string().trim().min(1).max(120).safeParse(req.params?.id);
+  if(!id.success)return reply.code(400).send({error:'INVALID_INPUT'});
+  try{
+   const updated=await prisma.$transaction(async tx=>{
+    const row=await tx.courtHoliday.findFirst({
+     where:{id:id.data,organizationId:req.auth.organizationId},select:{
+      id:true,active:true,name:true,date:true,tribunalCode:true,state:true,city:true,
+     },
+    });
+    if(!row)return {result:'NOT_FOUND'};
+    if(!row.active)return {result:'ALREADY_INACTIVE'};
+    const result=await tx.courtHoliday.updateMany({
+     where:{id:row.id,organizationId:req.auth.organizationId,active:true},data:{active:false},
+    });
+    if(result.count!==1)return {result:'ALREADY_INACTIVE'};
+    await audit(tx,req.auth,'DEADLINE_HOLIDAY_DEACTIVATED','CourtHoliday',row.id,{
+     name:row.name,date:row.date.toISOString().slice(0,10),
+     tribunalCode:row.tribunalCode,state:row.state,city:row.city,reason:parsed.data.reason,
+    });
+    return {result:'OK'};
+   });
+   if(updated.result==='NOT_FOUND')return reply.code(404).send({error:'NOT_FOUND'});
+   if(updated.result==='ALREADY_INACTIVE')return reply.code(409).send({error:'HOLIDAY_ALREADY_INACTIVE'});
+   return {id:id.data,active:false};
+  }catch(e){return apiError(reply,e);}
  });
  app.post('/deadlines/suspensions',{preHandler:[authenticate,requirePermission('calendar.manage')]},async(req:any,reply)=>{
   const data=validated(reply,suspensionSchema,req.body);if(!data)return;
