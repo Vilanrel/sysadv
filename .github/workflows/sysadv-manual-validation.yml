@@ -79,5 +79,7 @@ jobs:
         run: |
           npx prisma migrate status
           npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+      - name: Verify read-only release schema gate
+        run: node scripts/qa/production-schema-preflight.mjs
       - name: Run isolated integration smoke tests
         run: npx tsx scripts/qa/fenalaw-db-smoke.ts
