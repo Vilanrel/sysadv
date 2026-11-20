@@ -20,6 +20,11 @@ describe('configuracao da IA juridica',()=>{
     expect(legalAiProviderFailure(403)).toEqual({status:422,error:'LEGAL_AI_API_KEY_INVALID'});
     expect(legalAiProviderFailure(404)).toEqual({status:422,error:'LEGAL_AI_MODEL_UNAVAILABLE'});
     expect(legalAiProviderFailure(429)).toEqual({status:429,error:'LEGAL_AI_RATE_LIMIT'});
+    expect(legalAiProviderFailure(429,'insufficient_quota')).toEqual({status:429,error:'LEGAL_AI_CREDITS_EXHAUSTED'});
+    expect(legalAiProviderFailure(429,'credit_balance_exhausted')).toEqual({status:429,error:'LEGAL_AI_CREDITS_EXHAUSTED'});
+    expect(legalAiProviderFailure(429,'organization_spend_limit_exceeded')).toEqual({status:429,error:'LEGAL_AI_SPEND_LIMIT'});
+    expect(legalAiProviderFailure(429,'project_spend_limit_exceeded')).toEqual({status:429,error:'LEGAL_AI_SPEND_LIMIT'});
+    expect(legalAiProviderFailure(429,'organization_usage_limit_exceeded')).toEqual({status:429,error:'LEGAL_AI_USAGE_LIMIT'});
     expect(legalAiProviderFailure(503)).toEqual({status:502,error:'LEGAL_AI_CONNECTION_FAILED'});
   });
   it('bloqueia modelos com caracteres de controle',()=>{
