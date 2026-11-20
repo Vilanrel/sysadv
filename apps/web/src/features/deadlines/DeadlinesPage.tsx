@@ -234,13 +234,57 @@ export function DeadlinesPage(){const fb=useFeedback();
          {item.active&&has('calendar.manage')&&<button className="ghost" type="button" disabled={busy} onClick={()=>void deactivateHoliday(item)}>Desativar</button>}
        </article>)}</div>}
      <p className="muted">O registro de um feriado não valida todo o calendário anual. Alterações nos feriados exigem revisar os cálculos pendentes.</p>
-   </section><section className="panel"><div className="panel-head"><h2>Validação de calendário local</h2></div><p className="muted">Cadastre feriados e suspensões na <Link to="/agenda">Agenda</Link>; após conferir o calendário oficial completo do tribunal e ano, registre a evidência abaixo. Esta ação não consulta uma API externa.</p>
-   <form className="entity-form" onSubmit={e=>{e.preventDefault();void perform(()=>jsonRequest('/deadlines/calendar-coverage','POST',coverage),'Cobertura do calendário registrada pelo responsável.');}}>
+   </section>
+   <section className="panel">
+    <div className="panel-head"><div><h2>Suspensões de expediente por tribunal</h2>
+      <p>Registre portarias de suspensão, período de vigência, tribunal, município e evidência da fonte oficial.</p>
+    </div></div>
+    {has('calendar.manage')&&<form className="entity-form" onSubmit={registerSuspension}>
+      <label>Tribunal<input required maxLength={24} value={suspensionForm.tribunalCode} onChange={e=>setSuspensionForm(v=>({...v,tribunalCode:e.target.value.toUpperCase()}))}/></label>
+      <label>UF<input required maxLength={2} value={suspensionForm.state} onChange={e=>setSuspensionForm(v=>({...v,state:e.target.value.toUpperCase()}))}/></label>
+      <label>Cidade (opcional)<input value={suspensionForm.city} onChange={e=>setSuspensionForm(v=>({...v,city:e.target.value}))} placeholder="Em branco: todas as cidades do tribunal"/></label>
+      <label>Início<input type="date" required value={suspensionForm.from} onChange={e=>setSuspensionForm(v=>({...v,from:e.target.value}))}/></label>
+      <label>Fim<input type="date" required min={suspensionForm.from||undefined} value={suspensionForm.to} onChange={e=>setSuspensionForm(v=>({...v,to:e.target.value}))}/></label>
+      <label className="span-full">Motivo<input required minLength={5} maxLength={200} value={suspensionForm.reason} onChange={e=>setSuspensionForm(v=>({...v,reason:e.target.value}))}/></label>
+      <label className="span-full">URL da fonte oficial (HTTPS)<input required type="url" pattern="https://.*" value={suspensionForm.sourceUrl} onChange={e=>setSuspensionForm(v=>({...v,sourceUrl:e.target.value}))}/></label>
+      <label className="span-full">Evidência documental<textarea required minLength={12} rows={2} value={suspensionForm.evidence} onChange={e=>setSuspensionForm(v=>({...v,evidence:e.target.value}))} placeholder="Portaria, resolução, expediente suspenso e conferência documental"/></label>
+      <div className="actions span-full"><button disabled={busy} className="primary">Cadastrar suspensão</button></div>
+    </form>}
+    <div className="actions"><label>Ano da consulta<input type="number" min={2000} max={2100} value={suspensionYear}
+      onChange={e=>{const v=Number(e.target.value);if(v>=2000&&v<=2100)setSuspensionYear(v);}}/></label></div>
+    {suspensions.length===0?<p className="muted">Nenhuma suspensão cadastrada neste ano. Confirme o expediente nas fontes oficiais.</p>:
+      <div className="deadline-rules-list">{suspensions.map(item=><article key={item.id}>
+        <div><strong>{item.reason}</strong>
+          <p>{item.tribunalCode}/{item.state} · {item.city||'Todas as cidades'} · {display(item.from)} até {display(item.to)}</p>
+          <p className="muted">{item.evidence}</p>
+          <span className={`deadline-status ${item.active?'deadline-approved':'deadline-cancelled'}`}>{item.active?'Ativa':'Revogada'}</span>
+        </div>
+        {item.active&&has('calendar.manage')&&<button className="ghost" type="button" disabled={busy} onClick={()=>void revokeSuspension(item)}>Revogar com justificativa</button>}
+      </article>)}</div>}
+    <p className="muted">Suspensões revogadas continuam registradas para auditoria e deixam de integrar o cálculo. A alteração exige revalidação dos calendários atingidos.</p>
+   </section>
+   <section className="panel"><div className="panel-head"><h2>Validação de calendário por tribunal</h2></div>
+    <p className="muted">Confira feriados e suspensões na fonte oficial para cada tribunal, município e ano. Alterações posteriores marcam a cobertura como pendente sem excluir o documento original.</p>
+   <form className="entity-form" onSubmit={e=>{e.preventDefault();void perform(async()=>{await jsonRequest('/deadlines/calendar-coverage','POST',coverage);setCoverage(v=>({...v,reviewAcknowledged:false}));},'Cobertura conferida e registrada. Alterações posteriores exigirão nova verificação.');}}>
     <label>Tribunal<input required value={coverage.tribunalCode} onChange={e=>setCoverage(v=>({...v,tribunalCode:e.target.value.toUpperCase()}))}/></label><label>UF<input required maxLength={2} value={coverage.state} onChange={e=>setCoverage(v=>({...v,state:e.target.value.toUpperCase()}))}/></label><label>Cidade<input value={coverage.city} onChange={e=>setCoverage(v=>({...v,city:e.target.value}))}/></label><label>Ano<input type="number" min={2000} max={2100} value={coverage.year} onChange={e=>setCoverage(v=>({...v,year:Number(e.target.value)}))}/></label>
     <label className="span-full">Fonte oficial consultada<input required type="url" value={coverage.sourceUrl} onChange={e=>setCoverage(v=>({...v,sourceUrl:e.target.value}))} placeholder="https://..."/></label><label className="span-full">Evidência de conferência completa<textarea required minLength={12} rows={2} value={coverage.evidence} onChange={e=>setCoverage(v=>({...v,evidence:e.target.value}))} placeholder="Ato normativo, dias suspensos, feriados e conferência documental"/></label>
+    <label className="deadline-check span-full"><input type="checkbox" required checked={coverage.reviewAcknowledged}
+      onChange={e=>setCoverage(v=>({...v,reviewAcknowledged:e.target.checked}))}/>
+      Confirmo que conferi o calendário oficial completo deste tribunal, município e ano, incluindo feriados e suspensões.</label>
     {has('calendar.manage')&&<button className="primary" disabled={busy}>Registrar validação</button>}
    </form>
+   <h3>Calendários por tribunal e ano</h3>
+   {calendarCoverages.length===0?<p className="muted">Nenhum calendário validado. É necessário conferir o expediente oficial antes de aprovar os prazos.</p>:
+    <div className="deadline-rules-list">{calendarCoverages.map(item=><article key={item.id}>
+      <div><strong>{item.tribunalCode}/{item.state} · {item.city||'Abrangência geral'} · {item.year}</strong>
+        <p>Última conferência: {display(item.verifiedAt)} · Fonte: {item.sourceUrl.startsWith('https://')?<a href={item.sourceUrl} rel="noreferrer" target="_blank">abrir documento oficial</a>:item.sourceUrl}</p>
+        <p className="muted">{item.evidence}</p>
+        <span className={`deadline-status ${item.verified?'deadline-approved':'deadline-pending_review'}`}>
+          {item.verified?'Validado':'Revalidação necessária'}
+        </span>
+      </div>
+    </article>)}</div>}
   </section></>}
-  {tab==='alerts'&&<section className="panel"><div className="panel-head"><div><h2>Alertas de prazo</h2><p>Alertas D-5, D-3, D-1 e prazo interno. Exibidos somente após aprovação.</p></div><button className="ghost" onClick={()=>void reload()}>Atualizar</button></div>{alerts.length===0?<p className="muted">Sem alertas pendentes até hoje.</p>:<div className="deadline-rules-list">{alerts.map(a=><article key={a.id}><div><strong>{labels[a.kind]??a.kind} · {a.deadline.ruleCode}</strong><p>{display(a.scheduledOn)} · prazo fatal {display(a.deadline.legalDueOn)} · {a.deadline.process?.npu??'Sem processo'}</p></div>{has('calendar.write')&&<button className="ghost" disabled={busy} onClick={()=>acknowledge(a.id)}>Marcar lido</button>}</article>)}</div>}<p className="muted">Alertas são persistidos para consulta dentro do SysADV; notificações externas por e-mail, SMS ou push ainda não estão habilitadas.</p></section>}
+  {tab==='alerts'&&<section className="panel"><div className="panel-head"><div><h2>Alertas de prazo</h2><p>Alertas D-5, D-3, D-1 e prazo interno. Exibidos somente após aprovação.</p></div><button className="ghost" onClick={()=>void reload()}>Atualizar</button></div>{alerts.length===0?<p className="muted">Sem alertas pendentes até hoje.</p>:<div className="deadline-rules-list">{alerts.map(a=><article key={a.id}><div><strong>{labels[a.kind]??a.kind} · {a.deadline.ruleCode}</strong><p>{display(a.scheduledOn)} · prazo fatal {display(a.deadline.legalDueOn)} · {a.deadline.process?.npu??'Sem processo'}</p></div>{has('calendar.write')&&<button className="ghost" disabled={busy} onClick={()=>acknowledge(a.id)}>Marcar lido</button>}</article>)}</div>}<p className="muted">Os alertas aprovados alimentam notificações internas automaticamente quando o processamento está ativado. E-mail somente com provedor configurado e aceite do usuário; SMS e push ainda não estão disponíveis.</p></section>}
  </div>;
 }
