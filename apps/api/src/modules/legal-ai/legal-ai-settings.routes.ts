@@ -28,7 +28,7 @@ export async function legalAiSettingsRoutes(app:FastifyInstance){
       return officeError(reply,e);
     }
   });
-  app.post('/office/legal-ai/test',{preHandler:[authenticate,requirePermission('settings.manage')]},async(req:any,reply)=>{
+  app.post('/office/legal-ai/test',{preHandler:[authenticate,requirePermission('settings.manage')],config:{rateLimit:{max:5,timeWindow:'1 minute'}}},async(req:any,reply)=>{
     const config=await resolveLegalAiConfig(req.auth.organizationId);
     if(!config.apiKey)return reply.code(409).send({error:'LEGAL_AI_KEY_REQUIRED'});
     const controller=new AbortController();
