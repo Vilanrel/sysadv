@@ -16,10 +16,18 @@ export const legalAiSettingsInput = z.object({
 export type LegalAiSettingsInput=z.infer<typeof legalAiSettingsInput>;
 
 // Provider failures are converted to actionable codes without exposing any response body.
-export function legalAiProviderFailure(status:number):{status:number;error:string}{
+export function legalAiProviderFailure(status:number,providerCode?:string):{status:number;error:string}{
   if(status===401||status===403)return {status:422,error:'LEGAL_AI_API_KEY_INVALID'};
   if(status===404)return {status:422,error:'LEGAL_AI_MODEL_UNAVAILABLE'};
-  if(status===429)return {status:429,error:'LEGAL_AI_RATE_LIMIT'};
+  if(status===429){
+    if(providerCode==='credit_balance_exhausted'||providerCode==='insufficient_quota')
+      return {status:429,error:'LEGAL_AI_CREDITS_EXHAUSTED'};
+    if(providerCode==='organization_spend_limit_exceeded'||providerCode==='project_spend_limit_exceeded')
+      return {status:429,error:'LEGAL_AI_SPEND_LIMIT'};
+    if(providerCode==='organization_usage_limit_exceeded')
+      return {status:429,error:'LEGAL_AI_USAGE_LIMIT'};
+    return {status:429,error:'LEGAL_AI_RATE_LIMIT'};
+  }
   return {status:502,error:'LEGAL_AI_CONNECTION_FAILED'};
 }
 
