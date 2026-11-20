@@ -11,6 +11,14 @@ type Alert={id:string;kind:string;scheduledOn:string;deadline:{id:string;ruleCod
 type Process={id:string;npu:string};
 type HolidayScope='NATIONAL'|'STATE'|'TRIBUNAL'|'CITY';
 type Holiday={id:string;name:string;date:string;tribunalCode:string|null;state:string|null;city:string|null;notes:string|null;active:boolean};
+type Suspension={
+ id:string;tribunalCode:string;state:string;city:string;from:string;to:string;
+ reason:string;evidence:string;active:boolean;revokedAt:string|null;
+};
+type CalendarCoverage={
+ id:string;tribunalCode:string;state:string;city:string;year:number;
+ sourceUrl:string;evidence:string;verifiedAt:string;verified:boolean;needsRevalidation:boolean;
+};
 const holidayScopeLabels:Record<HolidayScope,string>={
   NATIONAL:'Nacional',STATE:'Estadual',TRIBUNAL:'Tribunal',CITY:'Municipal',
 };
@@ -60,6 +68,13 @@ export function DeadlinesPage(){const fb=useFeedback();
  const [alerts,setAlerts]=useState<Alert[]>([]);const [form,setForm]=useState<Form>(defaultForm);const [preview,setPreview]=useState<Preview|null>(null);
  const [holidayYear,setHolidayYear]=useState(new Date().getFullYear());
  const [holidays,setHolidays]=useState<Holiday[]>([]);
+ const [suspensionYear,setSuspensionYear]=useState(new Date().getFullYear());
+ const [suspensions,setSuspensions]=useState<Suspension[]>([]);
+ const [calendarCoverages,setCalendarCoverages]=useState<CalendarCoverage[]>([]);
+ const [suspensionForm,setSuspensionForm]=useState({
+  tribunalCode:'TJSP',state:'SP',city:'',from:'',to:'',
+  reason:'',sourceUrl:'',evidence:'',
+ });
  const [holidayForm,setHolidayForm]=useState({
    scope:'CITY' as HolidayScope,name:'',date:'',tribunalCode:'TJSP',state:'SP',
    city:'',sourceUrl:'',evidence:'',
@@ -67,7 +82,7 @@ export function DeadlinesPage(){const fb=useFeedback();
  const [publicationReferences,setPublicationReferences]=useState<PublicationReference[]>([]);
  const [publicationLoading,setPublicationLoading]=useState(false);
  const [publicationError,setPublicationError]=useState('');
- const [coverage,setCoverage]=useState({tribunalCode:'TJSP',state:'SP',city:'',year:new Date().getFullYear(),sourceUrl:'',evidence:''});
+ const [coverage,setCoverage]=useState({tribunalCode:'TJSP',state:'SP',city:'',year:new Date().getFullYear(),sourceUrl:'',evidence:'',reviewAcknowledged:false});
  const [ruleForm,setRuleForm]=useState({code:'',label:'',branch:'CIVIL',nature:'PROCESSUAL',countMode:'BUSINESS_DAYS',quantity:5,endRoll:'NONE',recess:true,doubleEligible:false,trigger:'',sourceUrl:'',caveat:'',active:true});
  const [newRule,setNewRule]=useState(false);const [busy,setBusy]=useState(false);const [error,setError]=useState('');const [notice,setNotice]=useState('');
  const selected=useMemo(()=>rules.find(r=>r.code===form.ruleCode&&r.approved)||rules.find(r=>r.code===form.ruleCode),[rules,form.ruleCode]);
@@ -76,12 +91,16 @@ export function DeadlinesPage(){const fb=useFeedback();
      jsonRequest('/deadlines/rules'),jsonRequest('/deadlines'),jsonRequest('/deadlines/alerts'),
      has('process.read')?jsonRequest('/processes'):Promise.resolve([]),
      jsonRequest('/deadlines/holidays?year='+holidayYear),
+     jsonRequest('/deadlines/suspensions?year='+suspensionYear),
+     jsonRequest('/deadlines/calendar-coverage'),
    ];
-   const [r,d,a,p,h]=await Promise.all(requests);
+   const [r,d,a,p,h,susp,calendar]=await Promise.all(requests);
    setRules(r.rules??[]);setCases(d.items??[]);setAlerts(a.items??[]);
    setProcesses(Array.isArray(p)?p:Array.isArray(p.items)?p.items:[]);
    setHolidays(h.items??[]);
- },[has,holidayYear]);
+   setSuspensions(susp.items??[]);
+   setCalendarCoverages(calendar.items??[]);
+ },[has,holidayYear,suspensionYear]);
  useEffect(()=>{void reload().catch(e=>setError(e instanceof Error?e.message:'Não foi possível carregar os prazos.'));},[reload]);
  useEffect(()=>{
    let active=true;
@@ -122,6 +141,21 @@ export function DeadlinesPage(){const fb=useFeedback();
      setHolidayForm(v=>({...v,name:'',date:'',sourceUrl:'',evidence:''}));
      if(entryYear>=2000&&entryYear<=2100)setHolidayYear(entryYear);
    },'Feriado cadastrado com fonte documental. Confira a cobertura anual antes de aprovar prazos.');
+ };
+ const registerSuspension=(e:FormEvent)=>{
+   e.preventDefault();
+   const entryYear=Number(suspensionForm.from.slice(0,4));
+   void perform(async()=>{
+     await jsonRequest('/deadlines/suspensions','POST',suspensionForm);
+     setSuspensionForm(v=>({...v,from:'',to:'',reason:'',sourceUrl:'',evidence:''}));
+     if(entryYear>=2000&&entryYear<=2100)setSuspensionYear(entryYear);
+   },'Suspensão registrada. A validação do calendário correspondente precisará ser refeita.');
+ };
+ const revokeSuspension=async(item:Suspension)=>{
+   const reason=await fb.prompt({title:'Revogar suspensão de expediente',input:{label:'Motivo documentado (mínimo 12 caracteres)',required:true}});
+   if(!reason)return;
+   void perform(()=>jsonRequest('/deadlines/suspensions/'+encodeURIComponent(item.id)+'/revoke','POST',{reason}),
+     'Suspensão revogada com auditoria. Os prazos afetados exigem nova revisão.');
  };
  const deactivateHoliday=async(item:Holiday)=>{
    const reason=await fb.prompt({title:'Desativar feriado '+item.name+'? Informe o motivo com pelo menos 12 caracteres.',input:{label:'Motivo da correção',required:true}});
