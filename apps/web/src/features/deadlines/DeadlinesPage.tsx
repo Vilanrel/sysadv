@@ -15,7 +15,6 @@ type PublicationReference={
   source:{code:string;name:string}|null;
 };
 type Form={ruleCode:string;processId:string;anchorDate:string;anchorEvidence:string;tribunalCode:string;state:string;city:string;fileFormat:'PAPER'|'ELECTRONIC';doubleBasis:'NONE'|'PUBLIC_ENTITY'|'PUBLIC_DEFENDER'|'SEPARATE_COUNSEL';doubleJustification:string;fixedDueAt:string;fixedOffset:string;internalBusinessDays:number;natureConfirmation:'PROCESSUAL'|'MATERIAL'|'ADMINISTRATIVE';natureAcknowledged:boolean};
-const today = () => {const d=new Date();return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;};
 const defaultForm:Form={ruleCode:'CIVIL_CONTESTACAO',processId:'',anchorDate:'',anchorEvidence:'',tribunalCode:'TJSP',state:'SP',city:'',fileFormat:'ELECTRONIC',doubleBasis:'NONE',doubleJustification:'',fixedDueAt:'',fixedOffset:'-03:00',internalBusinessDays:2,natureConfirmation:'PROCESSUAL',natureAcknowledged:false};
 const display=(d:string|null|undefined)=>d?d.slice(0,10).split('-').reverse().join('/'):'—';
 const labels:Record<string,string>={CIVIL:'Cível',BUSINESS:'Empresarial',CRIMINAL:'Penal',LABOR:'Trabalhista',SOCIAL_SECURITY_ADMIN:'Previdenciário administrativo',INSOLVENCY:'Recuperação e falência',
@@ -99,7 +98,7 @@ export function DeadlinesPage(){const fb=useFeedback();
            <p>{p.tribunal??'Tribunal não informado'} · {p.source?.name??'Origem não especificada'}</p>
            <p>Disponibilização: <strong>{display(p.availableOn)}</strong> · Publicação: <strong>{display(p.publishedOn)}</strong></p>
          </div>
-         <Link to={`/publications/${encodeURIComponent(p.id)}`} className="ghost">Conferir documento</Link>
+         <Link to="/publications" className="ghost">Abrir publicações</Link>
        </article>)}</div>}
      <p className="muted">Não há cálculo ou criação automática de prazo a partir dessas publicações. A revisão jurídica e o calendário do tribunal permanecem obrigatórios.</p>
    </section>
