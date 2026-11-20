@@ -129,6 +129,39 @@ export async function deadlineRoutes(app:FastifyInstance){
    await audit(tx,req.auth,'COURT_SUSPENSION_CREATED','CourtSuspension',entry.id,{scope:{tribunalCode:data.tribunalCode,state:data.state,city:data.city},from:data.from,to:data.to});return entry;
   });return reply.code(201).send(item);
  });
+ // Consultation only: a publication is NOT an intimation, acknowledgement, or a validated deadline trigger.
+ // Dates are source metadata to support human review; this endpoint never creates or approves deadlines.
+ app.get('/deadlines/publications',{preHandler:[authenticate,requirePermission('calendar.read'),requirePermission('publication.read')]},async(req:any,reply)=>{
+  const query=z.object({processId:z.string().trim().min(1).max(120)}).strict().safeParse(req.query);
+  if(!query.success)return reply.code(400).send({error:'INVALID_INPUT'});
+  const org=req.auth.organizationId;
+  const process=await prisma.legalProcess.findFirst({
+   where:{id:query.data.processId,organizationId:org,deletedAt:null},
+   select:{id:true,npu:true},
+  });
+  if(!process)return reply.code(404).send({error:'PROCESS_NOT_FOUND'});
+  const rows=await prisma.officialPublication.findMany({
+   where:{organizationId:org,processId:process.id},
+   select:{
+    id:true,npu:true,title:true,actType:true,tribunal:true,
+    availableAt:true,publishedAt:true,sourceUrl:true,
+    source:{select:{code:true,name:true}},
+   },
+   orderBy:[{publishedAt:'desc'},{createdAt:'desc'}],take:30,
+  });
+  return {
+   process:{id:process.id,npu:process.npu},
+   items:rows.map(row=>({
+    id:row.id,npu:row.npu,title:row.title,actType:row.actType,tribunal:row.tribunal,
+    availableOn:row.availableAt?.toISOString().slice(0,10)??null,
+    publishedOn:row.publishedAt?.toISOString().slice(0,10)??null,
+    sourceUrl:row.sourceUrl?.startsWith('https://')?row.sourceUrl:null,
+    source:row.source,
+   })),
+   requiresHumanReview:true,automaticDeadlineCreation:false,
+   notice:'Datas da fonte nao comprovam ciencia, intimação valida, nem o inicio da contagem. O profissional deve conferir o ato, o marco e o calendario antes de criar um rascunho.',
+  };
+ });
  app.post('/deadlines/preview',{preHandler:[authenticate,requirePermission('calendar.read')]},async(req:any,reply)=>{
   const data=validated(reply,previewSchema,req.body);if(!data)return;
   // Keep the validated input's non-city fields unchanged, and give city the
