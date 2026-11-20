@@ -201,6 +201,9 @@ export async function deadlineRoutes(app:FastifyInstance){
     name:data.name,date:data.date,scope:data.scope,tribunalCode:created.tribunalCode,
     state:created.state,city:created.city,sourceUrl:data.sourceUrl,evidence:data.evidence,
    });
+   await recordCalendarChange(tx,calendarChangeAuth(req),'CourtHoliday',created.id,{
+    from:data.date,to:data.date,state:created.state,tribunalCode:created.tribunalCode,city:created.city,
+   });
    return created;
   });
   return reply.code(201).send({id:item.id,active:item.active,date:data.date,scope:data.scope});
@@ -227,6 +230,10 @@ export async function deadlineRoutes(app:FastifyInstance){
      name:row.name,date:row.date.toISOString().slice(0,10),
      tribunalCode:row.tribunalCode,state:row.state,city:row.city,reason:parsed.data.reason,
     });
+    await recordCalendarChange(tx,calendarChangeAuth(req),'CourtHoliday',row.id,{
+     from:row.date.toISOString().slice(0,10),to:row.date.toISOString().slice(0,10),
+     state:row.state,tribunalCode:row.tribunalCode,city:row.city,
+    });
     return {result:'OK'};
    });
    if(updated.result==='NOT_FOUND')return reply.code(404).send({error:'NOT_FOUND'});
@@ -234,12 +241,86 @@ export async function deadlineRoutes(app:FastifyInstance){
    return {id:id.data,active:false};
   }catch(e){return apiError(reply,e);}
  });
+ // A revoked suspension remains stored for documentary purposes.
+ // Its revocation is recorded in an immutable AuditEvent and excluded from calculations.
+ app.get('/deadlines/suspensions',{preHandler:[authenticate,requirePermission('calendar.read')]},async(req:any,reply)=>{
+  const parsed=z.object({year:z.coerce.number().int().min(2000).max(2100).optional()}).strict().safeParse(req.query??{});
+  if(!parsed.success)return reply.code(400).send({error:'INVALID_INPUT'});
+  const year=parsed.data.year??Number(brToday().slice(0,4));
+  const rows=await prisma.courtSuspension.findMany({
+   where:{organizationId:req.auth.organizationId,from:{lte:dateOnly(year+'-12-31')},to:{gte:dateOnly(year+'-01-01')}},
+   orderBy:[{from:'desc'},{createdAt:'desc'}],take:500,
+  });
+  const revocations=rows.length?await prisma.auditEvent.findMany({
+   where:{organizationId:req.auth.organizationId,entityType:'CourtSuspension',
+    action:'DEADLINE_SUSPENSION_REVOKED',entityId:{in:rows.map(row=>row.id)}},
+   select:{entityId:true,createdAt:true,newValue:true},
+  }):[];
+  const revoked=new Map(revocations.map(item=>[item.entityId,item]));
+  return {year,items:rows.map(row=>({
+   id:row.id,tribunalCode:row.tribunalCode,state:row.state,city:row.city,
+   from:row.from.toISOString().slice(0,10),to:row.to.toISOString().slice(0,10),
+   reason:row.reason,evidence:row.evidence,
+   active:!revoked.has(row.id),
+   revokedAt:revoked.get(row.id)?.createdAt.toISOString()??null,
+  }))};
+ });
  app.post('/deadlines/suspensions',{preHandler:[authenticate,requirePermission('calendar.manage')]},async(req:any,reply)=>{
   const data=validated(reply,suspensionSchema,req.body);if(!data)return;
-  const item=await prisma.$transaction(async tx=>{
-   const entry=await tx.courtSuspension.create({data:{...data,city:data.city ?? '',from:dateOnly(data.from),to:dateOnly(data.to),organizationId:req.auth.organizationId,approvedById:req.auth.userId}});
-   await audit(tx,req.auth,'COURT_SUSPENSION_CREATED','CourtSuspension',entry.id,{scope:{tribunalCode:data.tribunalCode,state:data.state,city:data.city},from:data.from,to:data.to});return entry;
-  });return reply.code(201).send(item);
+  try{
+   const result=await prisma.$transaction(async tx=>{
+    const {sourceUrl,...record}=data;
+    const entry=await tx.courtSuspension.create({data:{
+     ...record,city:data.city??'',from:dateOnly(data.from),to:dateOnly(data.to),
+     evidence:'Fonte HTTPS: '+sourceUrl+'\n'+data.evidence,
+     organizationId:req.auth.organizationId,approvedById:req.auth.userId,
+    }});
+    await audit(tx,req.auth,'COURT_SUSPENSION_CREATED','CourtSuspension',entry.id,{
+     scope:{tribunalCode:data.tribunalCode,state:data.state,city:data.city??''},
+     from:data.from,to:data.to,reason:data.reason,sourceUrl,evidence:data.evidence,
+    });
+    await recordCalendarChange(tx,calendarChangeAuth(req),'CourtSuspension',entry.id,{
+     from:data.from,to:data.to,state:data.state,tribunalCode:data.tribunalCode,city:data.city??null,
+    });
+    return entry;
+   });
+   return reply.code(201).send({id:result.id,active:true,
+    tribunalCode:result.tribunalCode,state:result.state,city:result.city,
+    from:data.from,to:data.to});
+  }catch(e){return apiError(reply,e);}
+ });
+ app.post('/deadlines/suspensions/:id/revoke',{preHandler:[authenticate,requirePermission('calendar.manage')]},async(req:any,reply)=>{
+  const payload=validated(reply,revokeSuspensionSchema,req.body);if(!payload)return;
+  const id=z.string().trim().min(1).max(120).safeParse(req.params?.id);
+  if(!id.success)return reply.code(400).send({error:'INVALID_INPUT'});
+  try{
+   const result=await prisma.$transaction(async tx=>{
+    // Serialise concurrent revocation attempts, avoiding duplicate audit events.
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${id.data}))`;
+    const row=await tx.courtSuspension.findFirst({
+     where:{id:id.data,organizationId:req.auth.organizationId},
+    });
+    if(!row)return 'NOT_FOUND';
+    const previous=await tx.auditEvent.findFirst({where:{
+     organizationId:req.auth.organizationId,entityType:'CourtSuspension',
+     entityId:row.id,action:'DEADLINE_SUSPENSION_REVOKED',
+    }});
+    if(previous)return 'ALREADY_REVOKED';
+    await audit(tx,req.auth,'DEADLINE_SUSPENSION_REVOKED','CourtSuspension',row.id,{
+     reason:payload.reason,from:row.from.toISOString().slice(0,10),
+     to:row.to.toISOString().slice(0,10),tribunalCode:row.tribunalCode,
+     state:row.state,city:row.city,
+    });
+    await recordCalendarChange(tx,calendarChangeAuth(req),'CourtSuspension',row.id,{
+     from:row.from.toISOString().slice(0,10),to:row.to.toISOString().slice(0,10),
+     tribunalCode:row.tribunalCode,state:row.state,city:row.city||null,
+    });
+    return 'REVOKED';
+   });
+   if(result==='NOT_FOUND')return reply.code(404).send({error:'NOT_FOUND'});
+   if(result==='ALREADY_REVOKED')return reply.code(409).send({error:'SUSPENSION_ALREADY_REVOKED'});
+   return {id:id.data,active:false};
+  }catch(e){return apiError(reply,e);}
  });
  // Consultation only: a publication is NOT an intimation, acknowledgement, or a validated deadline trigger.
  // Dates are source metadata to support human review; this endpoint never creates or approves deadlines.
