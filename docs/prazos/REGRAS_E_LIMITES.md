@@ -44,3 +44,16 @@ O arquivo `sql/2026-11-sysadv-deadlines-reference.sql` é referência DDL Postgr
 - Regras de audiência e prazos materiais são templates revisáveis e podem envolver peculiaridades de espécie, comarca, rito ou tribunal.
 - Alertas D-5/D-3/D-1 são datas corridas, inclusive fins de semana, para dar antecedência informativa. Não alteram a contagem legal nem garantem entrega externa.
 - Para material anual, o motor usa aniversário do ato (e ajusta 29 de fevereiro para fim de fevereiro em ano não bissexto). A solução específica deve ser revista por advogado.
+
+
+## Evolucao 2026-11-20 — Referencias de publicacoes judiciais durante a conferencia de prazos
+
+- A tela **Gerenciador de prazos** exibe, quando um processo e selecionado, ate 30 publicacoes **ja vinculadas** a ele.
+- A rota autenticada `GET /api/deadlines/publications?processId=...` exige **calendar.read** e **publication.read**, verifica que o processo pertence ao mesmo escritorio e foi mantido ativo, e devolve somente os metadados necessarios.
+- Data de disponibilizacao e data de publicacao aparecem **separadamente**; nenhuma delas e automaticamente transposta para o inicio do prazo.
+- A lista nao inclui o corpo da publicacao nem metadados brutos. Nao realiza chamada externa, ciencia, peticionamento ou pesquisa judicial.
+- O profissional continua obrigado a informar manualmente a data do ato/ciencia comprovada, a evidencia, a natureza e a regra do calculo. A data inicial deixou de vir preenchida com o dia atual, evitando sugerir um marco juridico nao comprovado.
+- A criacao do rascunho e a aprovacao por segundo usuario seguem as politicas anteriores. Este recurso **nao** automatiza calculo por publicacao.
+- Testes novos no PostgreSQL 18 descartavel cobrem autenticacao JWT, duas organizacoes, permissoes, vinculacao de publicacoes, segregacao de dados, datas distintas e ausencia de criacao automatica de prazos.
+
+**Pendencias nao resolvidas por esta evolucao:** credenciamento de fontes judiciais, verificacao oficial de data de ciencia, calendario anual de cada tribunal, homologacao com advogado, testes reais de DJEN/Domicilio/MNI e alertas externos.
