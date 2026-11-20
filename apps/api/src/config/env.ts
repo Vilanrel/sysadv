@@ -16,6 +16,7 @@ const schema = z.object({
   MAX_DOCUMENT_BYTES: z.coerce.number().int().positive().default(20 * 1024 * 1024),
   DATAJUD_API_KEY: z.preprocess(v => v === '' ? undefined : v, z.string().min(1).optional()),
   NOTIFICATION_EMAIL_ENABLED: z.enum(['true','false']).default('false').transform(v => v === 'true'),
+  DEADLINE_ALERT_AUTOMATION_ENABLED: z.enum(['true','false']).default('false').transform(v => v === 'true'),
   RESEND_API_KEY: z.preprocess(v => v === '' ? undefined : v, z.string().min(1).optional()),
   NOTIFICATION_FROM_EMAIL: z.preprocess(v => v === '' ? undefined : v, z.string().email().optional()),
   LEGAL_AI_ENABLED: z.enum(['true','false']).default('false').transform(v => v === 'true'),
