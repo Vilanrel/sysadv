@@ -57,3 +57,16 @@ O arquivo `sql/2026-11-sysadv-deadlines-reference.sql` é referência DDL Postgr
 - Testes novos no PostgreSQL 18 descartavel cobrem autenticacao JWT, duas organizacoes, permissoes, vinculacao de publicacoes, segregacao de dados, datas distintas e ausencia de criacao automatica de prazos.
 
 **Pendencias nao resolvidas por esta evolucao:** credenciamento de fontes judiciais, verificacao oficial de data de ciencia, calendario anual de cada tribunal, homologacao com advogado, testes reais de DJEN/Domicilio/MNI e alertas externos.
+
+
+## Evolucao 2026-11-20 — Gestao auditavel de feriados para calculo de prazos
+
+- Menu **Gerenciador de prazos → Regras e calendarios → Feriados judiciais e locais** permite cadastrar feriados com abrangencia nacional, estadual, tribunal ou municipio, usando as estruturas existentes `CourtHoliday` e `AuditEvent`.
+- A data civil do feriado e armazenada sem conversao por fuso horario.
+- Cadastro exige **fonte HTTPS** e descricao da evidencia; ambos ficam nas notas estruturadas do feriado e no evento de auditoria.
+- Apenas o usuario com `calendar.manage` pode cadastrar ou desativar; leitura requer `calendar.read`. Nunca se aceita `organizationId` do corpo. A desativacao e **logica** (`active=false`), auditada, sem excluir registros historicos.
+- Escopos: nacional (todos os tribunais da organizacao); estadual (UF); tribunal (UF e codigo do tribunal); municipal (UF, tribunal e cidade). A consulta e feita por ano.
+- O motor `loadCalendar` ja aplica feriados ativos compativeis com o escopo do processo. Os rascunhos de prazos sao recalculados na aprovacao e a alteracao de um feriado pode invalidar o hash do calculo, impedindo a aprovacao sem nova revisao.
+- A existencia de feriados cadastrados **nao representa calendario anual verificado**. A validacao de cobertura por tribunal/ano e uma operacao diferente e exige revisao profissional de feriados, suspensoes e atos oficiais.
+- Os testes HTTP de QA (PostgreSQL 18 descartavel) exercitam autenticacao, permissao administrativa, segregacao entre escritorios, validacao de escopo, rejeicao de duplicatas, data civil, impacto no vencimento e desativacao auditada.
+- Esta entrega nao importa feriados de APIs externas, nao confirma ciencia judicial, nao envia notificacoes externas e nao altera o esquema Prisma.
