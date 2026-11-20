@@ -34,6 +34,23 @@ export async function processNotificationEmailBatch(limit=10):Promise<{processed
       await prisma.notificationEmailDelivery.update({where:{id:item.id},data:{status:'CANCELLED',lastError:'CONSENT_REVOKED'}});
       continue;
     }
+    const original=await prisma.notificationEmailDelivery.findFirst({
+      where:{id:item.id,organizationId:item.organizationId,recipientId:item.recipientId},
+      select:{notification:{select:{sourceType:true,sourceId:true}}},
+    });
+    if(original?.notification.sourceType==='DEADLINE_ALERT'){
+      const stillDue=await prisma.deadlineAlert.findFirst({
+        where:{id:original.notification.sourceId,organizationId:item.organizationId,
+          acknowledgedAt:null,deadline:{status:'APPROVED'}},
+        select:{id:true},
+      });
+      if(!stillDue){
+        await prisma.notificationEmailDelivery.update({
+          where:{id:item.id},data:{status:'CANCELLED',lastError:'DEADLINE_ALREADY_ACKNOWLEDGED_OR_CANCELLED'},
+        });
+        continue;
+      }
+    }
     try{
       const providerMessageId=await sendGenericEmail(recipient.email,item.id);
       await prisma.notificationEmailDelivery.update({where:{id:item.id},data:{status:'SENT',sentAt:new Date(),providerMessageId,lastError:null}});

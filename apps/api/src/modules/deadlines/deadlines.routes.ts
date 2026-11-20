@@ -7,6 +7,7 @@ import { requirePermission } from '../../security/authorize.js';
 import { dateOnly, dayString, validated } from '../office/office-policy.js';
 import { addCalendarDays, calculateDeadline, DeadlineRuleError, type CalendarInfo, type LegalRule, type PreviewInput } from './deadline-engine.js';
 import { DEFAULT_DEADLINE_RULES, getDefaultRule } from './deadline-presets.js';
+import {annotateCalendarCoverage,recordCalendarChange} from './calendar-coverage-validity.js';
 
 const courtCode = z.string().trim().min(2).max(24).transform(s=>s.toUpperCase());
 const stateCode = z.string().trim().length(2).transform(s=>s.toUpperCase());
@@ -25,8 +26,10 @@ const previewSchema = z.object({
 const createRuleSchema=z.object({code:ruleCode,label:z.string().trim().min(5).max(160),branch:z.enum(['CIVIL','BUSINESS','CRIMINAL','LABOR','SOCIAL_SECURITY_ADMIN','INSOLVENCY']),
  nature:z.enum(['PROCESSUAL','MATERIAL','ADMINISTRATIVE']),countMode:z.enum(['BUSINESS_DAYS','CALENDAR_DAYS','YEARS','FIXED_EVENT']),quantity:z.number().int().min(0).max(5000),
  endRoll:z.enum(['NONE','NEXT_BUSINESS']),recess:z.boolean(),doubleEligible:z.boolean(),trigger:z.string().trim().min(12).max(500),sourceUrl:z.string().url().max(600),caveat:z.string().trim().min(12).max(800),active:z.boolean().default(true)}).strict();
-const coverageSchema=z.object({tribunalCode:courtCode,state:stateCode,city:cityCode,year:z.number().int().min(2000).max(2100),sourceUrl:z.string().url().max(600),evidence:z.string().trim().min(12).max(800)}).strict();
-const suspensionSchema=z.object({tribunalCode:courtCode,state:stateCode,city:cityCode,from:dayString,to:dayString,reason:z.string().trim().min(5).max(200),evidence:z.string().trim().min(12).max(800)}).strict().refine(x=>x.to>=x.from,{message:'INVALID_RANGE'});
+const coverageSchema=z.object({tribunalCode:courtCode,state:stateCode,city:cityCode,year:z.number().int().min(2000).max(2100),sourceUrl:z.string().url().max(600).refine(x=>x.startsWith('https://')),evidence:z.string().trim().min(12).max(800),reviewAcknowledged:z.literal(true)}).strict();
+const suspensionSchema=z.object({tribunalCode:courtCode,state:stateCode,city:cityCode,from:dayString,to:dayString,reason:z.string().trim().min(5).max(200),evidence:z.string().trim().min(12).max(800),sourceUrl:z.string().url().max(600).refine(x=>x.startsWith('https://'))}).strict().refine(x=>x.to>=x.from&&new Date(x.to+'T00:00:00Z').getTime()-new Date(x.from+'T00:00:00Z').getTime()<=366*86400000,{message:'INVALID_RANGE'});
+const revokeSuspensionSchema=z.object({reason:z.string().trim().min(12).max(800)}).strict();
+const calendarChangeAuth=(req:any)=>({organizationId:req.auth.organizationId as string,userId:req.auth.userId as string});
 
 const holidaySchema=z.object({
  name:z.string().trim().min(4).max(160),
@@ -84,9 +87,19 @@ async function loadCalendar(org:string,anchor:string,scope:{tribunalCode:string;
   prisma.courtSuspension.findMany({where:{organizationId:org,from:{lte:dateOnly(to)},to:{gte:dateOnly(from)}}}),
   prisma.courtCalendarCoverage.findMany({where:{organizationId:org,...scope}}),
  ]);
+ const [revocations,coverageStatus]=await Promise.all([
+  suspensions.length?prisma.auditEvent.findMany({where:{
+   organizationId:org,entityType:'CourtSuspension',action:'DEADLINE_SUSPENSION_REVOKED',
+   entityId:{in:suspensions.map(item=>item.id)},
+  },select:{entityId:true}}):Promise.resolve([]),
+  annotateCalendarCoverage(org,coverage),
+ ]);
+ const revokedIds=new Set(revocations.map(item=>item.entityId));
  return {holidays:holidays.filter(h=>scoped(h,scope)).map(h=>h.date.toISOString().slice(0,10)),
-  suspensions:suspensions.filter(s=>scoped(s,scope)).map(s=>({from:s.from.toISOString().slice(0,10),to:s.to.toISOString().slice(0,10)})).sort((a,b)=>a.from.localeCompare(b.from)),
-  verifiedYears:coverage.map(y=>y.year).sort((a,b)=>a-b)};
+  suspensions:suspensions.filter(s=>!revokedIds.has(s.id)&&scoped(s,scope))
+    .map(s=>({from:s.from.toISOString().slice(0,10),to:s.to.toISOString().slice(0,10)}))
+    .sort((a,b)=>a.from.localeCompare(b.from)),
+  verifiedYears:coverageStatus.filter(item=>item.verified).map(y=>y.year).sort((a,b)=>a-b)};
 }
 async function prepare(auth:any,data:z.infer<typeof previewSchema>){
  await checkProcess(auth.organizationId,data.processId);
@@ -131,15 +144,21 @@ export async function deadlineRoutes(app:FastifyInstance){
    await audit(tx,req.auth,'DEADLINE_RULE_APPROVED','DeadlineRule',item.id,{code:item.code,version:item.version});return updated;
   });return {id:done.id,approved:true};
  });
- app.get('/deadlines/calendar-coverage',{preHandler:[authenticate,requirePermission('calendar.read')]},async(req:any)=>({items:await prisma.courtCalendarCoverage.findMany({where:{organizationId:req.auth.organizationId},orderBy:[{year:'desc'},{tribunalCode:'asc'}],take:500})}));
+ app.get('/deadlines/calendar-coverage',{preHandler:[authenticate,requirePermission('calendar.read')]},async(req:any)=>{
+  const items=await prisma.courtCalendarCoverage.findMany({
+   where:{organizationId:req.auth.organizationId},orderBy:[{year:'desc'},{tribunalCode:'asc'}],take:500,
+  });
+  return {items:await annotateCalendarCoverage(req.auth.organizationId,items)};
+ });
  app.post('/deadlines/calendar-coverage',{preHandler:[authenticate,requirePermission('calendar.manage')]},async(req:any,reply)=>{
   const data=validated(reply,coverageSchema,req.body);if(!data)return;
   const entry=await prisma.$transaction(async tx=>{
    // Zod accepts an omitted municipality for broad calendar coverage, while the
    // database always requires a stable string scope ('' = no city specified).
    const city = data.city ?? '';
+   const {reviewAcknowledged:_,...record}=data;
    const result=await tx.courtCalendarCoverage.upsert({where:{organizationId_tribunalCode_state_city_year:{organizationId:req.auth.organizationId,tribunalCode:data.tribunalCode,state:data.state,city,year:data.year}},
-    create:{...data,city,organizationId:req.auth.organizationId,verifiedById:req.auth.userId},update:{sourceUrl:data.sourceUrl,evidence:data.evidence,verifiedAt:new Date(),verifiedById:req.auth.userId}});
+    create:{...record,city,organizationId:req.auth.organizationId,verifiedById:req.auth.userId},update:{sourceUrl:data.sourceUrl,evidence:data.evidence,verifiedAt:new Date(),verifiedById:req.auth.userId}});
    await audit(tx,req.auth,'DEADLINE_CALENDAR_VERIFIED','CourtCalendarCoverage',result.id,{tribunalCode:result.tribunalCode,state:result.state,city:result.city,year:result.year});return result;
   });return reply.code(201).send(entry);
  });
@@ -182,6 +201,9 @@ export async function deadlineRoutes(app:FastifyInstance){
     name:data.name,date:data.date,scope:data.scope,tribunalCode:created.tribunalCode,
     state:created.state,city:created.city,sourceUrl:data.sourceUrl,evidence:data.evidence,
    });
+   await recordCalendarChange(tx,calendarChangeAuth(req),'CourtHoliday',created.id,{
+    from:data.date,to:data.date,state:created.state,tribunalCode:created.tribunalCode,city:created.city,
+   });
    return created;
   });
   return reply.code(201).send({id:item.id,active:item.active,date:data.date,scope:data.scope});
@@ -208,6 +230,10 @@ export async function deadlineRoutes(app:FastifyInstance){
      name:row.name,date:row.date.toISOString().slice(0,10),
      tribunalCode:row.tribunalCode,state:row.state,city:row.city,reason:parsed.data.reason,
     });
+    await recordCalendarChange(tx,calendarChangeAuth(req),'CourtHoliday',row.id,{
+     from:row.date.toISOString().slice(0,10),to:row.date.toISOString().slice(0,10),
+     state:row.state,tribunalCode:row.tribunalCode,city:row.city,
+    });
     return {result:'OK'};
    });
    if(updated.result==='NOT_FOUND')return reply.code(404).send({error:'NOT_FOUND'});
@@ -215,12 +241,86 @@ export async function deadlineRoutes(app:FastifyInstance){
    return {id:id.data,active:false};
   }catch(e){return apiError(reply,e);}
  });
+ // A revoked suspension remains stored for documentary purposes.
+ // Its revocation is recorded in an immutable AuditEvent and excluded from calculations.
+ app.get('/deadlines/suspensions',{preHandler:[authenticate,requirePermission('calendar.read')]},async(req:any,reply)=>{
+  const parsed=z.object({year:z.coerce.number().int().min(2000).max(2100).optional()}).strict().safeParse(req.query??{});
+  if(!parsed.success)return reply.code(400).send({error:'INVALID_INPUT'});
+  const year=parsed.data.year??Number(brToday().slice(0,4));
+  const rows=await prisma.courtSuspension.findMany({
+   where:{organizationId:req.auth.organizationId,from:{lte:dateOnly(year+'-12-31')},to:{gte:dateOnly(year+'-01-01')}},
+   orderBy:[{from:'desc'},{createdAt:'desc'}],take:500,
+  });
+  const revocations=rows.length?await prisma.auditEvent.findMany({
+   where:{organizationId:req.auth.organizationId,entityType:'CourtSuspension',
+    action:'DEADLINE_SUSPENSION_REVOKED',entityId:{in:rows.map(row=>row.id)}},
+   select:{entityId:true,createdAt:true,newValue:true},
+  }):[];
+  const revoked=new Map(revocations.map(item=>[item.entityId,item]));
+  return {year,items:rows.map(row=>({
+   id:row.id,tribunalCode:row.tribunalCode,state:row.state,city:row.city,
+   from:row.from.toISOString().slice(0,10),to:row.to.toISOString().slice(0,10),
+   reason:row.reason,evidence:row.evidence,
+   active:!revoked.has(row.id),
+   revokedAt:revoked.get(row.id)?.createdAt.toISOString()??null,
+  }))};
+ });
  app.post('/deadlines/suspensions',{preHandler:[authenticate,requirePermission('calendar.manage')]},async(req:any,reply)=>{
   const data=validated(reply,suspensionSchema,req.body);if(!data)return;
-  const item=await prisma.$transaction(async tx=>{
-   const entry=await tx.courtSuspension.create({data:{...data,city:data.city ?? '',from:dateOnly(data.from),to:dateOnly(data.to),organizationId:req.auth.organizationId,approvedById:req.auth.userId}});
-   await audit(tx,req.auth,'COURT_SUSPENSION_CREATED','CourtSuspension',entry.id,{scope:{tribunalCode:data.tribunalCode,state:data.state,city:data.city},from:data.from,to:data.to});return entry;
-  });return reply.code(201).send(item);
+  try{
+   const result=await prisma.$transaction(async tx=>{
+    const {sourceUrl,...record}=data;
+    const entry=await tx.courtSuspension.create({data:{
+     ...record,city:data.city??'',from:dateOnly(data.from),to:dateOnly(data.to),
+     evidence:'Fonte HTTPS: '+sourceUrl+'\n'+data.evidence,
+     organizationId:req.auth.organizationId,approvedById:req.auth.userId,
+    }});
+    await audit(tx,req.auth,'COURT_SUSPENSION_CREATED','CourtSuspension',entry.id,{
+     scope:{tribunalCode:data.tribunalCode,state:data.state,city:data.city??''},
+     from:data.from,to:data.to,reason:data.reason,sourceUrl,evidence:data.evidence,
+    });
+    await recordCalendarChange(tx,calendarChangeAuth(req),'CourtSuspension',entry.id,{
+     from:data.from,to:data.to,state:data.state,tribunalCode:data.tribunalCode,city:data.city??null,
+    });
+    return entry;
+   });
+   return reply.code(201).send({id:result.id,active:true,
+    tribunalCode:result.tribunalCode,state:result.state,city:result.city,
+    from:data.from,to:data.to});
+  }catch(e){return apiError(reply,e);}
+ });
+ app.post('/deadlines/suspensions/:id/revoke',{preHandler:[authenticate,requirePermission('calendar.manage')]},async(req:any,reply)=>{
+  const payload=validated(reply,revokeSuspensionSchema,req.body);if(!payload)return;
+  const id=z.string().trim().min(1).max(120).safeParse(req.params?.id);
+  if(!id.success)return reply.code(400).send({error:'INVALID_INPUT'});
+  try{
+   const result=await prisma.$transaction(async tx=>{
+    // Serialise concurrent revocation attempts, avoiding duplicate audit events.
+    await tx.$queryRaw`SELECT 1 AS locked FROM pg_advisory_xact_lock(hashtext(${id.data}))`;
+    const row=await tx.courtSuspension.findFirst({
+     where:{id:id.data,organizationId:req.auth.organizationId},
+    });
+    if(!row)return 'NOT_FOUND';
+    const previous=await tx.auditEvent.findFirst({where:{
+     organizationId:req.auth.organizationId,entityType:'CourtSuspension',
+     entityId:row.id,action:'DEADLINE_SUSPENSION_REVOKED',
+    }});
+    if(previous)return 'ALREADY_REVOKED';
+    await audit(tx,req.auth,'DEADLINE_SUSPENSION_REVOKED','CourtSuspension',row.id,{
+     reason:payload.reason,from:row.from.toISOString().slice(0,10),
+     to:row.to.toISOString().slice(0,10),tribunalCode:row.tribunalCode,
+     state:row.state,city:row.city,
+    });
+    await recordCalendarChange(tx,calendarChangeAuth(req),'CourtSuspension',row.id,{
+     from:row.from.toISOString().slice(0,10),to:row.to.toISOString().slice(0,10),
+     tribunalCode:row.tribunalCode,state:row.state,city:row.city||null,
+    });
+    return 'REVOKED';
+   });
+   if(result==='NOT_FOUND')return reply.code(404).send({error:'NOT_FOUND'});
+   if(result==='ALREADY_REVOKED')return reply.code(409).send({error:'SUSPENSION_ALREADY_REVOKED'});
+   return {id:id.data,active:false};
+  }catch(e){return apiError(reply,e);}
  });
  // Consultation only: a publication is NOT an intimation, acknowledgement, or a validated deadline trigger.
  // Dates are source metadata to support human review; this endpoint never creates or approves deadlines.
@@ -334,8 +434,24 @@ export async function deadlineRoutes(app:FastifyInstance){
   return {items};
  });
  app.post('/deadlines/alerts/:id/ack',{preHandler:[authenticate,requirePermission('calendar.write')]},async(req:any,reply)=>{
-  const updated=await prisma.deadlineAlert.updateMany({where:{id:req.params.id,organizationId:req.auth.organizationId,acknowledgedAt:null,deadline:{status:'APPROVED'}},data:{acknowledgedAt:new Date(),acknowledgedById:req.auth.userId}});
-  if(!updated.count)return reply.code(404).send({error:'NOT_FOUND'});
+  const id=z.string().trim().min(1).max(120).safeParse(req.params?.id);
+  if(!id.success)return reply.code(400).send({error:'INVALID_INPUT'});
+  const updated=await prisma.$transaction(async tx=>{
+   const item=await tx.deadlineAlert.updateMany({
+    where:{id:id.data,organizationId:req.auth.organizationId,
+      acknowledgedAt:null,deadline:{status:'APPROVED'}},
+    data:{acknowledgedAt:new Date(),acknowledgedById:req.auth.userId},
+   });
+   if(item.count){
+    await tx.notificationInbox.updateMany({
+     where:{organizationId:req.auth.organizationId,recipientId:req.auth.userId,
+      sourceType:'DEADLINE_ALERT',sourceId:id.data,readAt:null},
+     data:{readAt:new Date()},
+    });
+   }
+   return item.count;
+  });
+  if(!updated)return reply.code(404).send({error:'NOT_FOUND'});
   return {acknowledged:true};
  });
 }

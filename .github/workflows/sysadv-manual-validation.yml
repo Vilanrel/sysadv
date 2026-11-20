@@ -91,3 +91,5 @@ jobs:
         run: npx tsx scripts/qa/deadline-publication-http-smoke.ts
       - name: Verify scoped court holidays and deadline recalculation via HTTP
         run: npx tsx scripts/qa/court-holidays-http-smoke.ts
+      - name: Verify suspension revocation, revalidation and due-alert automation
+        run: npx tsx scripts/qa/suspensions-alerts-http-smoke.ts
