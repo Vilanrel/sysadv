@@ -74,7 +74,7 @@ try {
   assert.equal((await getLegalAiSettings(orgA)).keyConfigured,false);
   assert.equal((await resolveLegalAiConfig(orgA)).apiKey,undefined);
   console.log(JSON.stringify({ok:true,tenants:2,workflowRuns:1,notifications:1,idempotent:true,
-    legalAiSettingsEncrypted:true,tenantIsolation:true,keyRevocation:true}));
+    legalAiSettingsEncrypted:true,tenantIsolation:true,keyRevocation:true,disabledKeyTestable:true}));
 } finally {
   // Limpeza na ordem das FKs, sem confiar na ordem das cascatas do PostgreSQL.
   const scope={organizationId:{in:[orgA,orgB]}};
