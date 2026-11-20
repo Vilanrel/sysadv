@@ -6,7 +6,7 @@ export type CalendarChange={
   state:string|null;tribunalCode:string|null;city:string|null;
 };
 type Coverage=Pick<CourtCalendarCoverage,'year'|'verifiedAt'|'tribunalCode'|'state'|'city'>;
-const validDay=(v:unknown)=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v);
+const validDay=(v:unknown):v is string=>typeof v==='string'&&/^\d{4}-\d{2}-\d{2}$/.test(v);
 function readChange(value:unknown):CalendarChange|null{
   if(!value||typeof value!=='object'||Array.isArray(value))return null;
   const obj=value as Record<string,unknown>;
@@ -55,6 +55,6 @@ export async function recordCalendarChange(
   await tx.auditEvent.create({data:{
     organizationId:auth.organizationId,userId:auth.userId,
     action:'DEADLINE_CALENDAR_CHANGED',entityType,entityId,
-    newValue:change,source:'WEB',
+    newValue:change as unknown as Prisma.InputJsonObject,source:'WEB',
   }});
 }
