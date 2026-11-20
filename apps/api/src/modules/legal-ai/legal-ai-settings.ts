@@ -36,7 +36,9 @@ export async function resolveLegalAiConfig(organizationId:string) {
   });
   if(saved) {
     let apiKey:string|undefined;
-    if(saved.enabled && saved.encryptedApiKey) apiKey=decryptSecret(saved.encryptedApiKey);
+    // The administrator must be able to test a configured key before enabling AI.
+    // Draft generation remains protected by the separate enabled flag.
+    if(saved.encryptedApiKey) apiKey=decryptSecret(saved.encryptedApiKey);
     return {enabled:saved.enabled,model:saved.model,apiKey};
   }
   return {enabled:env.LEGAL_AI_ENABLED,model:env.LEGAL_AI_MODEL,
