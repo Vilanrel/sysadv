@@ -70,3 +70,15 @@ O arquivo `sql/2026-11-sysadv-deadlines-reference.sql` é referência DDL Postgr
 - A existencia de feriados cadastrados **nao representa calendario anual verificado**. A validacao de cobertura por tribunal/ano e uma operacao diferente e exige revisao profissional de feriados, suspensoes e atos oficiais.
 - Os testes HTTP de QA (PostgreSQL 18 descartavel) exercitam autenticacao, permissao administrativa, segregacao entre escritorios, validacao de escopo, rejeicao de duplicatas, data civil, impacto no vencimento e desativacao auditada.
 - Esta entrega nao importa feriados de APIs externas, nao confirma ciencia judicial, nao envia notificacoes externas e nao altera o esquema Prisma.
+
+
+## Evolução de 20/11/2026 — Suspensões de expediente e validade de calendários
+
+- Em **Gerenciador de Prazos → Regras e calendários**, o usuário com `calendar.manage` cadastra suspensão de expediente por tribunal, UF, cidade opcional e intervalo de datas de até 366 dias, com fonte HTTPS e justificativa documental.
+- A suspensão é armazenada em `CourtSuspension`, com trilha `AuditEvent`. Sua revogação exige justificativa, cria evento `DEADLINE_SUSPENSION_REVOKED` e **não remove nem reescreve a evidência histórica**. O motor ignora suspensões revogadas.
+- Qualquer novo feriado, desativação de feriado, criação ou revogação de suspensão produz evento `DEADLINE_CALENDAR_CHANGED` com data e âmbito territorial, isolado por escritório.
+- Um calendário anteriormente validado fica **pendente de revalidação** quando houver mudança aplicável posterior à data de sua conferência. A conferência original, fonte, autor e data ficam preservados; ninguém perde o registro documental. O avaliador informa confirmação explícita de revisão de feriados e suspensões.
+- A API `GET /deadlines/calendar-coverage` expõe `verified` e `needsRevalidation` por tribunal, UF, município e ano. Um calendário pendente é excluído da lista de anos válidos usada pelo motor de prazos.
+- O cálculo de prazos em estado `PENDING_REVIEW` precisa ser refeito se o calendário mudar. A aprovação continua exigindo calendário vigente e revisão de outro profissional.
+- O sistema **não declara** que a fonte externa foi consultada por máquina; a verificação documental do calendário e do ato de ciência continua sendo responsabilidade de profissional autorizado.
+- O código evita migração de esquema e reutiliza tabelas existentes (`CourtSuspension`, `CourtCalendarCoverage`, `AuditEvent`).
