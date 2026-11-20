@@ -15,6 +15,14 @@ export const legalAiSettingsInput = z.object({
 });
 export type LegalAiSettingsInput=z.infer<typeof legalAiSettingsInput>;
 
+// Provider failures are converted to actionable codes without exposing any response body.
+export function legalAiProviderFailure(status:number):{status:number;error:string}{
+  if(status===401||status===403)return {status:422,error:'LEGAL_AI_API_KEY_INVALID'};
+  if(status===404)return {status:422,error:'LEGAL_AI_MODEL_UNAVAILABLE'};
+  if(status===429)return {status:429,error:'LEGAL_AI_RATE_LIMIT'};
+  return {status:502,error:'LEGAL_AI_CONNECTION_FAILED'};
+}
+
 export async function getLegalAiSettings(organizationId:string) {
   const saved=await prisma.legalAiSettings.findUnique({
     where:{organizationId},
@@ -36,7 +44,9 @@ export async function resolveLegalAiConfig(organizationId:string) {
   });
   if(saved) {
     let apiKey:string|undefined;
-    if(saved.enabled && saved.encryptedApiKey) apiKey=decryptSecret(saved.encryptedApiKey);
+    // The administrator must be able to test a configured key before enabling AI.
+    // Draft generation remains protected by the separate enabled flag.
+    if(saved.encryptedApiKey) apiKey=decryptSecret(saved.encryptedApiKey);
     return {enabled:saved.enabled,model:saved.model,apiKey};
   }
   return {enabled:env.LEGAL_AI_ENABLED,model:env.LEGAL_AI_MODEL,

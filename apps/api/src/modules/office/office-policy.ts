@@ -15,7 +15,7 @@ export function dateOnly(value:string) { return new Date(`${value}T00:00:00.000Z
 export function dated(value:string|undefined|null) {return value?dateOnly(value):null;}
 export function officeError(reply:any, error:unknown) {
   const code=error instanceof Error?error.message:'INVALID_REQUEST';
-  const statuses:Record<string,number>={NOT_FOUND:404,INVALID_REFERENCE:400,INVALID_REQUEST:400,INVALID_STATE:409,ALREADY_PAID:409,PAYMENT_EXCEEDS_BALANCE:409,IDEMPOTENCY_CONFLICT:409,ALREADY_EXISTS:409,FORBIDDEN:403,INVALID_AMOUNT:400};
+  const statuses:Record<string,number>={NOT_FOUND:404,INVALID_REFERENCE:400,INVALID_REQUEST:400,INVALID_STATE:409,ALREADY_PAID:409,PAYMENT_EXCEEDS_BALANCE:409,IDEMPOTENCY_CONFLICT:409,ALREADY_EXISTS:409,FORBIDDEN:403,INVALID_AMOUNT:400,EVIDENCE_REQUIRED:400};
   return reply.code(statuses[code]??500).send({error:statuses[code]?code:'INTERNAL_ERROR'});
 }
 export function validated<TSchema extends z.ZodTypeAny>(reply:any, schema:TSchema, input:unknown):z.output<TSchema>|null {

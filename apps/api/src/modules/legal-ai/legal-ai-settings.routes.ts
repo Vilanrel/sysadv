@@ -3,7 +3,7 @@ import {authenticate} from '../../security/authenticate.js';
 import {requirePermission} from '../../security/authorize.js';
 import {prisma} from '../../db/prisma.js';
 import {auditMutation,officeError,validated} from '../office/office-policy.js';
-import {getLegalAiSettings,legalAiSettingsInput,resolveLegalAiConfig,saveLegalAiSettings} from './legal-ai-settings.js';
+import {getLegalAiSettings,legalAiSettingsInput,legalAiProviderFailure,resolveLegalAiConfig,saveLegalAiSettings} from './legal-ai-settings.js';
 
 export async function legalAiSettingsRoutes(app:FastifyInstance){
   app.get('/office/legal-ai',{preHandler:[authenticate,requirePermission('settings.read')]},async(req:any)=>{
@@ -28,7 +28,7 @@ export async function legalAiSettingsRoutes(app:FastifyInstance){
       return officeError(reply,e);
     }
   });
-  app.post('/office/legal-ai/test',{preHandler:[authenticate,requirePermission('settings.manage')]},async(req:any,reply)=>{
+  app.post('/office/legal-ai/test',{preHandler:[authenticate,requirePermission('settings.manage')],config:{rateLimit:{max:5,timeWindow:'1 minute'}}},async(req:any,reply)=>{
     const config=await resolveLegalAiConfig(req.auth.organizationId);
     if(!config.apiKey)return reply.code(409).send({error:'LEGAL_AI_KEY_REQUIRED'});
     const controller=new AbortController();
@@ -36,7 +36,7 @@ export async function legalAiSettingsRoutes(app:FastifyInstance){
     try{
       const url='https://api.openai.com/v1/models/'+encodeURIComponent(config.model);
       const response=await fetch(url,{method:'GET',headers:{Authorization:'Bearer '+config.apiKey},signal:controller.signal});
-      if(!response.ok)return reply.code(502).send({error:'LEGAL_AI_CONNECTION_FAILED',providerStatus:response.status});
+      if(!response.ok){const failure=legalAiProviderFailure(response.status);return reply.code(failure.status).send({error:failure.error});}
       return {connected:true,model:config.model};
     }catch{
       return reply.code(502).send({error:'LEGAL_AI_CONNECTION_FAILED'});

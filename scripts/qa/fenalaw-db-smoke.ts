@@ -64,11 +64,17 @@ try {
   const tenantB=await getLegalAiSettings(orgB);
   assert.equal(tenantB.keyConfigured,false);
   assert.equal(await prisma.legalAiSettings.count({where:{organizationId:orgB}}),0);
+  // Disabled feature should remain inactive while administrators validate saved credentials.
+  await saveLegalAiSettings(orgA,{enabled:false,model:'gpt-4.1-mini'});
+  const disabled=await resolveLegalAiConfig(orgA);
+  assert.equal(disabled.enabled,false);
+  assert.equal(disabled.apiKey,qaKey);
+  assert.equal((await getLegalAiSettings(orgA)).keyConfigured,true);
   await saveLegalAiSettings(orgA,{enabled:false,model:'gpt-4.1-mini',clearApiKey:true});
   assert.equal((await getLegalAiSettings(orgA)).keyConfigured,false);
   assert.equal((await resolveLegalAiConfig(orgA)).apiKey,undefined);
   console.log(JSON.stringify({ok:true,tenants:2,workflowRuns:1,notifications:1,idempotent:true,
-    legalAiSettingsEncrypted:true,tenantIsolation:true,keyRevocation:true}));
+    legalAiSettingsEncrypted:true,tenantIsolation:true,keyRevocation:true,disabledKeyTestable:true}));
 } finally {
   // Limpeza na ordem das FKs, sem confiar na ordem das cascatas do PostgreSQL.
   const scope={organizationId:{in:[orgA,orgB]}};
