@@ -2,7 +2,7 @@ import type { FastifyInstance } from 'fastify';
 import { authenticate } from '../../security/authenticate.js';
 import { requirePermission } from '../../security/authorize.js';
 import { requireModule } from '../commercial/module-entitlements.js';
-import {resolveLegalAiConfig} from './legal-ai-settings.js';
+import {legalAiProviderFailure,resolveLegalAiConfig} from './legal-ai-settings.js';
 import { legalAiMessages, legalDraftInput } from './legal-ai-policy.js';
 import {citationReviewInput,extractCitationCandidates} from './citation-review.js';
 import {citationAttestationInput} from './citation-attestation-policy.js';
@@ -60,7 +60,19 @@ export async function legalAiRoutes(app:FastifyInstance) {
         body:JSON.stringify({model:config.model,messages:legalAiMessages(parsed.data),temperature:0.2,max_completion_tokens:3200}),
         signal:controller.signal,
       });
-      if(!response.ok){req.log.warn({status:response.status},'Falha no provedor de IA');return reply.code(502).send({error:'LEGAL_AI_PROVIDER_UNAVAILABLE'});}
+      if(!response.ok){
+        // Read only the provider error code. Never expose provider text or API credentials.
+        let providerCode:string|undefined;
+        if(response.status===429){
+          try{
+            const payload=await response.json() as {error?:{code?:unknown}};
+            if(typeof payload?.error?.code==='string')providerCode=payload.error.code;
+          }catch{/* Some provider errors have no JSON body. */}
+        }
+        const failure=legalAiProviderFailure(response.status,providerCode);
+        req.log.warn({status:response.status,error:failure.error},'Falha no provedor de IA');
+        return reply.code(failure.status).send({error:failure.error});
+      }
       const payload=await response.json() as {choices?:{message?:{content?:string}}[]};
       const text=payload.choices?.[0]?.message?.content?.trim();
       if(!text) return reply.code(502).send({error:'LEGAL_AI_EMPTY_RESPONSE'});
