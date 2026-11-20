@@ -1,5 +1,5 @@
 import {describe,expect,it} from 'vitest';
-import {legalAiSettingsInput} from './legal-ai-settings.js';
+import {legalAiSettingsInput,legalAiProviderFailure} from './legal-ai-settings.js';
 
 describe('configuracao da IA juridica',()=>{
   it('aceita habilitar uma integracao com uma chave digitada',()=>{
