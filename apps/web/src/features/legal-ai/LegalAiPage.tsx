@@ -51,7 +51,7 @@ export function LegalAiPage(){
   return <main className="panel" style={{maxWidth:1050,margin:'0 auto'}}>
     <h1>Assistente de redação jurídica</h1>
     <p className="muted">Rascunhos para revisão por advogado. O resultado não comprova fontes nem substitui pesquisa jurídica.</p>
-    {!status?.enabled&&<p role="status">Serviço não habilitado: administrador deve configurar LEGAL_AI_ENABLED e LEGAL_AI_API_KEY no servidor.</p>}
+    {!status?.enabled&&<p role="status">Serviço não habilitado. Solicite ao administrador que acesse Configurações do escritório e configure a Inteligência Artificial.</p>}
     {error&&<p role="alert">{error}</p>}
     <form onSubmit={e=>void submit(e)} className="office-form">
       <label>Modalidade<select value={action} onChange={e=>setAction(e.target.value as typeof action)}>

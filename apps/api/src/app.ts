@@ -6,6 +6,7 @@ import { workflowRoutes } from './modules/workflows/workflow.routes.js';
 import { diligenceRoutes } from './modules/diligences/diligence.routes.js';
 import { crmRoutes } from './modules/crm/crm.routes.js';
 import { legalAiRoutes } from './modules/legal-ai/legal-ai.routes.js';
+import { legalAiSettingsRoutes } from './modules/legal-ai/legal-ai-settings.routes.js';
 import { randomUUID } from 'node:crypto';
 import Fastify from 'fastify';
 import { registerSecurity } from './plugins/security.js';
@@ -38,7 +39,7 @@ import { env } from './config/env.js';
 import { deadlineRoutes } from './modules/deadlines/deadlines.routes.js';
 import { invalidateOrganizationDashboard } from './modules/dashboard/file-cache.js';
 export async function buildApp() {
-  const app = Fastify({ logger: { redact: ['req.headers.authorization','req.headers.cookie','body.password','body.refreshToken'] }, genReqId: req => (req.headers['x-request-id'] as string | undefined) ?? randomUUID() });
+  const app = Fastify({ logger: { redact: ['req.headers.authorization','req.headers.cookie','body.password','body.refreshToken','req.body.apiKey','body.apiKey'] }, genReqId: req => (req.headers['x-request-id'] as string | undefined) ?? randomUUID() });
   await registerSecurity(app); await registerOpenApi(app); registerErrors(app);
   app.addHook('onSend', async (req, reply, payload) => { reply.header('x-request-id', req.id); return payload; });
   // Invalida as visoes precalculadas apos mutacoes bem-sucedidas;
@@ -49,6 +50,6 @@ export async function buildApp() {
     await invalidateOrganizationDashboard(req.auth.organizationId, env.DASHBOARD_CACHE_DIR).catch(err=>req.log.warn({err}, 'Dashboard cache invalidation failed'));
   });
   app.get('/api/health', async () => ({ status: 'ok' }));
-  await app.register(async api => { await api.register(authRoutes); await api.register(usersRoutes); await api.register(processesRoutes); await api.register(documentsRoutes); await api.register(integrationsRoutes); await api.register(auditRoutes); await api.register(dashboardRoutes); await api.register(calculationsRoutes); await api.register(systemRoutes); await api.register(dataSourcesRoutes); await api.register(publicationsRoutes); await api.register(pjeCalcAgentRoutes); await api.register(templatesRoutes); await api.register(peopleRoutes); await api.register(tasksRoutes); await api.register(agendaRoutes); await api.register(judicialIntegrationRoutes); await api.register(intakesRoutes); await api.register(agreementsRoutes); await api.register(financeRoutes); await api.register(timesheetRoutes); await api.register(reportsRoutes); await api.register(settingsRoutes); await api.register(deadlineRoutes); await api.register(legalAiRoutes); await api.register(crmRoutes); await api.register(diligenceRoutes); await api.register(workflowRoutes); await api.register(notificationRoutes); await api.register(assetResearchRoutes); await api.register(commercialRoutes); await api.register(onboardingRoutes); }, { prefix: '/api' });
+  await app.register(async api => { await api.register(authRoutes); await api.register(usersRoutes); await api.register(processesRoutes); await api.register(documentsRoutes); await api.register(integrationsRoutes); await api.register(auditRoutes); await api.register(dashboardRoutes); await api.register(calculationsRoutes); await api.register(systemRoutes); await api.register(dataSourcesRoutes); await api.register(publicationsRoutes); await api.register(pjeCalcAgentRoutes); await api.register(templatesRoutes); await api.register(peopleRoutes); await api.register(tasksRoutes); await api.register(agendaRoutes); await api.register(judicialIntegrationRoutes); await api.register(intakesRoutes); await api.register(agreementsRoutes); await api.register(financeRoutes); await api.register(timesheetRoutes); await api.register(reportsRoutes); await api.register(settingsRoutes); await api.register(deadlineRoutes); await api.register(legalAiRoutes); await api.register(legalAiSettingsRoutes); await api.register(crmRoutes); await api.register(diligenceRoutes); await api.register(workflowRoutes); await api.register(notificationRoutes); await api.register(assetResearchRoutes); await api.register(commercialRoutes); await api.register(onboardingRoutes); }, { prefix: '/api' });
   return app;
 }
