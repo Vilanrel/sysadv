@@ -18,3 +18,19 @@ Administrador com `settings.manage` pode habilitar/desabilitar a IA, escolher mo
 - Migrar `prisma/migrations/202611190011_legal_ai_settings` **apenas em ambiente QA antes de produção**.
 - A base do Railway ainda precisa ser reconciliada com o esquema da aplicação. Não fazer deploy da API nova sem migrações controladas e backup verificado.
 - Não fazer o merge/deploy deste PR automaticamente durante a recuperação do login.
+
+## Gate de publicação — estado verificado em 19/11/2026
+
+- GitHub Actions de código e banco QA: aprovado no PR #7; a verificação de compatibilidade adicional foi acrescentada depois desse resultado, portanto exige novo run.
+- No Railway, o serviço `@sysadv/api` está executando o commit `f51d078...`, mantido por rollback devido a incompatibilidade do esquema do usuário.
+- O PostgreSQL de produção é PostgreSQL 18 com volume persistente `postgres-volume`, que não foi alterado nesta entrega.
+- `SOURCE_ENCRYPTION_KEY` já consta entre os nomes de variáveis da API Railway; nenhum valor secreto foi acessado.
+- Não há fork/cópia de QA do banco Railway disponível neste projeto neste momento.
+
+### Inspeção segura do banco real
+
+O comando `node scripts/qa/production-schema-preflight.mjs` consulta apenas metadados de colunas e de `_prisma_migrations`. Ele não lê registros de clientes, não faz DDL/DML, não altera senha e termina com código 2 caso o banco não esteja compatível.
+
+Para executá-lo sobre a base de produção é necessário um shell autorizado no serviço Railway ou uma conexão PostgreSQL com acesso de leitura ao esquema. **O assistente não dispõe atualmente de uma execução de comandos nessa base e não realizará migração sem backup restaurável**.
+
+Só após backup validado, comparação de estrutura e aprovação da inspeção será permitido promover esta PR, aplicar migrações em janela controlada e validar o login com a API nova. O deploy poderá ser efetuado via integração da `main` ao Railway após passar esses gates.
