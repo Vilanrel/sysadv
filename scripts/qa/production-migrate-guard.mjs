@@ -25,9 +25,16 @@ const mode=process.argv[2];
 const isQa=process.env.NODE_ENV==='test'
   &&process.env.SYSADV_ALLOW_QA_DATA_WRITES==='true'
   &&(()=>{try{return new URL(process.env.DATABASE_URL).pathname.endsWith('/sysadv_qa');}catch{return false;}})();
-const isProd=process.env.NODE_ENV==='production'
-  &&process.env.RAILWAY_ENVIRONMENT_NAME==='production'
-  &&process.env.SYSADV_ALLOW_PRODUCTION_SCHEMA_CHANGE==='true';
+const isProd=process.env.SYSADV_ALLOW_PRODUCTION_SCHEMA_CHANGE==='true'
+  &&(process.env.RAILWAY_ENVIRONMENT_NAME==='production'
+    ||process.env.RAILWAY_ENVIRONMENT_ID==='aecab1ba-fe3b-4ea7-bfad-1b8ae1e96f9a');
+// Log only non-secret guard flags to diagnose Railway pre-deploy context.
+console.log('SYSADV_MIGRATION_CONTEXT',JSON.stringify({
+  environmentName:process.env.RAILWAY_ENVIRONMENT_NAME??null,
+  environmentIdMatched:process.env.RAILWAY_ENVIRONMENT_ID==='aecab1ba-fe3b-4ea7-bfad-1b8ae1e96f9a',
+  authorized:process.env.SYSADV_ALLOW_PRODUCTION_SCHEMA_CHANGE==='true',
+  disposableQa:isQa,
+}));
 
 function fail(message) {console.error('SYSADV_MIGRATION_BLOCKED',message);process.exit(2);}
 if(mode!=='--apply')fail('Mode must be --apply');
