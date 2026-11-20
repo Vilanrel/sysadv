@@ -73,12 +73,14 @@ jobs:
           test -s /tmp/sysadv-baseline.sql
           psql "$PGURL" -v ON_ERROR_STOP=1 -f /tmp/sysadv-baseline.sql
           npx prisma migrate resolve --applied 202611180000_baseline_v0101
-      - name: Deploy incremental migrations only in ephemeral QA
-        run: npx prisma migrate deploy
+      - name: Deploy incremental migrations through guarded release path in QA
+        run: node scripts/qa/production-migrate-guard.mjs --apply
       - name: Check that migrations produced the expected schema
         run: |
           npx prisma migrate status
           npx prisma migrate diff --from-url "$DATABASE_URL" --to-schema-datamodel prisma/schema.prisma --exit-code
+      - name: Verify release migration guard idempotence
+        run: node scripts/qa/production-migrate-guard.mjs --apply
       - name: Verify read-only release schema gate
         run: node scripts/qa/production-schema-preflight.mjs
       - name: Run isolated integration smoke tests
