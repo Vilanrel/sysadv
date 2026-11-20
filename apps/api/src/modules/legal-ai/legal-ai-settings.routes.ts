@@ -3,7 +3,7 @@ import {authenticate} from '../../security/authenticate.js';
 import {requirePermission} from '../../security/authorize.js';
 import {prisma} from '../../db/prisma.js';
 import {auditMutation,officeError,validated} from '../office/office-policy.js';
-import {getLegalAiSettings,legalAiSettingsInput,resolveLegalAiConfig,saveLegalAiSettings} from './legal-ai-settings.js';
+import {getLegalAiSettings,legalAiSettingsInput,legalAiProviderFailure,resolveLegalAiConfig,saveLegalAiSettings} from './legal-ai-settings.js';
 
 export async function legalAiSettingsRoutes(app:FastifyInstance){
   app.get('/office/legal-ai',{preHandler:[authenticate,requirePermission('settings.read')]},async(req:any)=>{
