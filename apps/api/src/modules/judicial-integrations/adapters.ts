@@ -1,10 +1,11 @@
 import { createHash } from 'node:crypto';
+import { isValidCnjNpu } from '@sysadv/contracts';
 import { z } from 'zod';
 import { requestJudicialJson, JudicialUpstreamError } from './http.js';
 import { resolveJudicialSegment } from '../processes/judicial-segment.js';
 
 export const dateString=z.string().regex(/^\d{4}-\d{2}-\d{2}$/).refine(v=>{const [y,m,d]=v.split('-').map(Number);const dt=new Date(Date.UTC(y,m-1,d));return dt.getUTCFullYear()===y&&dt.getUTCMonth()===m-1&&dt.getUTCDate()===d;},'INVALID_DATE');
-export const djenFilterSchema=z.object({from:dateString,to:dateString,tribunal:z.string().regex(/^[A-Z0-9-]{2,12}$/).optional(),oabNumber:z.string().trim().regex(/^[A-Za-z0-9.\-/]{1,25}$/).optional(),oabState:z.string().regex(/^[A-Z]{2}$/).optional(),npu:z.string().regex(/^\d{20}$/).optional(),pageSize:z.number().int().min(1).max(100).default(50)}).strict().refine(v=>v.from<=v.to,{message:'INVALID_DATE_RANGE'}).refine(v=>!!v.oabNumber===!!v.oabState,{message:'OAB_UF_REQUIRED'});
+export const djenFilterSchema=z.object({from:dateString,to:dateString,tribunal:z.string().regex(/^[A-Z0-9-]{2,12}$/).optional(),oabNumber:z.string().trim().regex(/^[A-Za-z0-9.\-/]{1,25}$/).optional(),oabState:z.string().regex(/^[A-Z]{2}$/).optional(),npu:z.string().regex(/^\d{20}$/).refine(isValidCnjNpu,'INVALID_NPU').optional(),pageSize:z.number().int().min(1).max(100).default(50)}).strict().refine(v=>v.from<=v.to,{message:'INVALID_DATE_RANGE'}).refine(v=>!!v.oabNumber===!!v.oabState,{message:'OAB_UF_REQUIRED'});
 export type DjenFilters=z.infer<typeof djenFilterSchema>;
 export type DjenItem={externalId:string;processNumber:string;body:string;tribunal:string|null;actType:string;title:string|null;availableOn:string|null;publishedOn:string|null;original:Record<string,unknown>;providerVersion:string|null;sourceUrl:string|null};
 export type DjenPage={items:DjenItem[];totalPages:number;page:number};
@@ -15,11 +16,18 @@ export function readMappedPath(value:unknown,path:string):unknown {
   return path.split('.').reduce<unknown>((acc,key)=>asRecord(acc)[key],value);
 }
 function safeText(v:unknown,max=250_000){return typeof v==='string'?v.trim().slice(0,max):typeof v==='number'?String(v):'';}
-function localDate(v:unknown):string|null {const raw=safeText(v,50);return /^\d{4}-\d{2}-\d{2}$/.test(raw)?raw:/^\d{4}-\d{2}-\d{2}T/.test(raw)?raw.slice(0,10):null;}
+function localDate(v:unknown):string|null {
+  const raw=safeText(v,50);
+  const candidate=/^\d{4}-\d{2}-\d{2}$/.test(raw)?raw:/^\d{4}-\d{2}-\d{2}T/.test(raw)?raw.slice(0,10):null;
+  return candidate && dateString.safeParse(candidate).success ? candidate : null;
+}
+
+/** Preserva a data civil do DJEN em DateTime (meio-dia UTC), sem deslocar o dia no fuso de Brasilia. */
+export function judicialCivilDateToUtc(value:string|null):Date|null {
+  return value && dateString.safeParse(value).success ? new Date(`${value}T12:00:00.000Z`) : null;
+}
 export function validCnjNumber(digits:string):boolean {
-  if(!/^\d{20}$/.test(digits))return false;
-  const value=BigInt(digits.slice(0,7)+digits.slice(9)+'00');
-  return 98n-(value%97n)===BigInt(digits.slice(7,9));
+  return /^\d{20}$/.test(digits) && isValidCnjNpu(digits);
 }
 function normalizeNpu(v:unknown):string {const digits=safeText(v,50).replace(/\D/g,'');return validCnjNumber(digits)?digits:'';}
 export function normalizeDjenItem(raw:unknown,mapping:Record<string,string>={}):DjenItem {

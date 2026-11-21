@@ -5,6 +5,7 @@ import { requirePermission } from '../../security/authorize.js';
 import { ProcessesService } from './processes.service.js';
 import { ProcessIntegrationService } from './process-integration.service.js';
 import { dataJudResolutionForNpu } from './datajud.js';
+import { isValidNpu } from './npu.js';
 import { audit } from '../audit/audit.service.js';
 import { prisma } from '../../db/prisma.js';
 
@@ -16,7 +17,7 @@ export async function processesRoutes(app: FastifyInstance) {
     preHandler: [authenticate, requirePermission('process.read')]
   }, async (req: any, reply) => {
     const npu = String(req.query?.npu ?? '');
-    if (!/^\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}$/.test(npu)) {
+    if (!isValidNpu(npu)) {
       return reply.code(400).send({ error: 'INVALID_NPU' });
     }
 
@@ -167,7 +168,8 @@ export async function processesRoutes(app: FastifyInstance) {
         source: 'WEB'
       });
       return p;
-    } catch {
+    } catch (error: any) {
+      if (error?.message === 'INVALID_NPU') return reply.code(400).send({ error: 'INVALID_NPU' });
       return reply.code(404).send({ error: 'NOT_FOUND' });
     }
   });

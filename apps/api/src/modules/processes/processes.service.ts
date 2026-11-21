@@ -78,6 +78,7 @@ export class ProcessesService {
 
   async update(id: string, org: string, userId: string, input: Partial<ProcessInput>) {
     const existing = await prisma.legalProcess.findFirst({ where: { id, organizationId: org, deletedAt: null } }); if (!existing) throw new Error('NOT_FOUND');
+    if (input.npu !== undefined && !isValidNpu(input.npu)) throw new Error('INVALID_NPU');
     const p = await prisma.legalProcess.update({ where: { id }, data: toData(input) }); await this.writeManualEvidence(p.id, userId, input); return p;
   }
 

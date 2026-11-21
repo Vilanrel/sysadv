@@ -2,7 +2,7 @@ import { describe, expect, it, afterEach } from 'vitest';
 import { STATE_COURTS } from './tribunals.js';
 import { JUDICIAL_SOURCES } from './catalog.js';
 import { assertDataJudLegalGate, canActivateJudicialSource, requireReadyConnection } from './policy.js';
-import { djenFilterSchema, parseDjenPage, normalizeDjenItem, fetchDjenPage, searchTjdft, searchStjCatalog, searchAuthorizedDataJud, validCnjNumber } from './adapters.js';
+import { djenFilterSchema, parseDjenPage, normalizeDjenItem, fetchDjenPage, judicialCivilDateToUtc, searchTjdft, searchStjCatalog, searchAuthorizedDataJud, validCnjNumber } from './adapters.js';
 import { requestJudicialJson } from './http.js';
 
 const json = (body:unknown, status=200, extra:Record<string,string>={}) => new Response(JSON.stringify(body), {status,headers:{'content-type':'application/json',...extra}});
@@ -31,9 +31,20 @@ describe('INT JUD: DJEN',()=>{
   const mapping={itemsPath:'items' as const,totalPath:'totalPages' as const};
   const item={hash:'hash-0001',numeroProcesso:'1051528-57.2024.8.26.0053',texto:'Publicação para teste',siglaTribunal:'TJSP',dataDisponibilizacao:'2026-11-06'};
   it('valida digito verificador CNJ sem coagir o identificador numerico',()=>{expect(validCnjNumber('10515285720248260053')).toBe(true);expect(validCnjNumber('10515285620248260053')).toBe(false);});
+  it('impede filtro DJEN com digito CNJ invalido',()=>expect(()=>djenFilterSchema.parse({from:'2026-11-05',to:'2026-11-06',npu:'10515285620248260053'})).toThrow());
   it('preserva OAB alfanumerica e UF para evitar colisao',()=>{const parsed=djenFilterSchema.parse({from:'2026-11-05',to:'2026-11-06',oabNumber:'12345-A',oabState:'SP'});expect(parsed.oabNumber).toBe('12345-A');expect(()=>djenFilterSchema.parse({from:'2026-11-05',to:'2026-11-06',oabNumber:'12345-A'})).toThrow();});
   it('nao aceita uma data civil inexistente',()=>expect(()=>djenFilterSchema.parse({from:'2026-02-30',to:'2026-03-01'})).toThrow());
   it('normaliza uma publicacao com NPU e preserva data civil literal',()=>{const out=normalizeDjenItem(item);expect(out.processNumber).toBe('10515285720248260053');expect(out.availableOn).toBe('2026-11-06');expect(out.externalId).toBe('hash-0001');});
+  it('persiste data civil DJEN sem perder valor ou mudar dia em Sao Paulo',()=>{
+    const normalized=normalizeDjenItem({...item,dataPublicacao:'2026-11-07T18:33:00Z'});
+    expect(normalized.availableOn).toBe('2026-11-06');
+    expect(normalized.publishedOn).toBe('2026-11-07');
+    expect(judicialCivilDateToUtc(normalized.availableOn)?.toISOString()).toBe('2026-11-06T12:00:00.000Z');
+    expect(judicialCivilDateToUtc(normalized.publishedOn)?.toISOString()).toBe('2026-11-07T12:00:00.000Z');
+    expect(judicialCivilDateToUtc('2026-02-30')).toBeNull();
+    expect(judicialCivilDateToUtc(null)).toBeNull();
+    expect(normalizeDjenItem({...item,dataDisponibilizacao:'2026-02-30'}).availableOn).toBeNull();
+  });
   it('completa uma unica pagina somente com total conhecido',()=>{const page=parseDjenPage({items:[item],totalPages:1},1,20,mapping);expect(page.totalPages).toBe(1);expect(page.items).toHaveLength(1);});
   it('identifica pagina vazia prematura como incompleta',()=>expect(()=>parseDjenPage({items:[],totalPages:4},2,20,mapping)).toThrow('DJEN_PREMATURE_EMPTY_PAGE'));
   it('rejeita HTML 200 e schema incerto',async()=>{await expect(requestJudicialJson('DJEN','/api/v1/comunicacao',{},async()=>new Response('<html>Login</html>',{headers:{'content-type':'text/html'}}))).rejects.toThrow('JUDICIAL_NON_JSON_RESPONSE');expect(()=>parseDjenPage({total:2,conteudo:[item]},1,20,mapping)).toThrow('DJEN_SCHEMA_UNVERIFIED');});
