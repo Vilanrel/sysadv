@@ -1,5 +1,6 @@
 import type { FastifyInstance } from 'fastify';
 import { z } from 'zod';
+import { isValidCnjNpu } from '@sysadv/contracts';
 import { prisma } from '../../db/prisma.js';
 import { authenticate } from '../../security/authenticate.js';
 import { requirePermission } from '../../security/authorize.js';
@@ -18,7 +19,7 @@ const connectionCreate=z.object({sourceCode:z.string().refine(v=>codeList.includ
 const activateSchema=z.object({termsAccepted:z.literal(true),legalBasis:z.string().trim().min(8).max(250),authorizationReference:z.string().trim().min(8).max(250),contractHash:z.string().regex(/^[a-fA-F0-9]{64}$/),config:z.record(z.unknown()).optional()}).strict();
 const syncSchema=z.object({connectionId:z.string().min(1),filters:djenFilterSchema});
 const researchSchema=tjdftSearchSchema.extend({connectionId:z.string().min(1)});
-const dataJudSearchSchema=z.object({connectionId:z.string().min(1),npu:z.string().trim().min(20).max(30)}).strict();
+const dataJudSearchSchema=z.object({connectionId:z.string().min(1),npu:z.string().trim().min(20).max(30).refine(isValidCnjNpu,'INVALID_NPU')}).strict();
 const secretFields=/(^|_)(api.?key|password|secret|token|credential|private.?key)($|_)/i;
 function containsSecrets(value:unknown,depth=0):boolean{if(depth>8)return true;if(Array.isArray(value))return value.some(v=>containsSecrets(v,depth+1));if(value&&typeof value==='object')return Object.entries(value).some(([k,v])=>secretFields.test(k)||containsSecrets(v,depth+1));return false;}
 const safeConfig=(obj:unknown)=>{if(!obj)return undefined;const serialized=JSON.stringify(obj);if(serialized.length>6000||containsSecrets(obj))throw new JudicialPolicyError('CONFIG_CONTAINS_SECRET_OR_TOO_LARGE',400);return obj as Prisma.InputJsonValue;};

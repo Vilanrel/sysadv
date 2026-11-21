@@ -1,11 +1,10 @@
 import { prisma } from '../../db/prisma.js';
 import { Prisma } from '@prisma/client';
-import { sha256, djenFilterSchema, fetchDjenPage, type DjenFilters, type DjenItem, type DjenMapping } from './adapters.js';
+import { sha256, djenFilterSchema, fetchDjenPage, judicialCivilDateToUtc, type DjenFilters, type DjenItem, type DjenMapping } from './adapters.js';
 import { requireReadyConnection, JudicialPolicyError } from './policy.js';
 import { JudicialUpstreamError } from './http.js';
 
 export const jobStates=['queued','running','retry_wait','partial','succeeded','failed','blocked','cancelled'] as const;
-function dateOnlyToTime(value:string|null){return value&&/^\d{4}-\d{2}-\d{2}T/.test(value)&&!Number.isNaN(Date.parse(value))?new Date(value):null;}
 function formatNpu(digits:string) {return digits.length===20?`${digits.slice(0,7)}-${digits.slice(7,9)}.${digits.slice(9,13)}.${digits.slice(13,14)}.${digits.slice(14,16)}.${digits.slice(16)}`:'';}
 export function publicJob(row:{id:string;status:string;completeness:string;nextPage:number;received:number;inserted:number;updated:number;duplicates:number;unlinked:number;lastErrorCode:string|null;retryAt:Date|null;finishedAt:Date|null;createdAt:Date;source?:string}){
   return {jobId:row.id,status:row.status,completeness:row.completeness,nextPage:row.nextPage,received:row.received,inserted:row.inserted,updated:row.updated,duplicates:row.duplicates,unlinked:row.unlinked,error:row.lastErrorCode,retryAt:row.retryAt,finishedAt:row.finishedAt,createdAt:row.createdAt,source:row.source??'DJEN'};
@@ -50,10 +49,10 @@ export async function commitDjenPage(jobId:string,items:DjenItem[],totalPages:nu
         const current=await tx.officialPublication.upsert({
           where:{organizationId_fingerprint:{organizationId:job.organizationId,fingerprint}},
           update:{processId:process?.id??null,tribunal:item.tribunal,actType:item.actType,title:item.title,content:item.body,
-            availableAt:dateOnlyToTime(item.availableOn),publishedAt:dateOnlyToTime(item.publishedOn),sourceUrl:item.sourceUrl,
+            availableAt:judicialCivilDateToUtc(item.availableOn),publishedAt:judicialCivilDateToUtc(item.publishedOn),sourceUrl:item.sourceUrl,
             rawMetadata:{externalId:item.externalId,providerVersion:item.providerVersion,availableOn:item.availableOn,publishedOn:item.publishedOn,contentHash} as Prisma.InputJsonValue},
           create:{organizationId:job.organizationId,processId:process?.id??null,sourceId:dataSource?.id??null,npu:formatNpu(item.processNumber),externalId:item.externalId,fingerprint,tribunal:item.tribunal,
-            actType:item.actType,title:item.title,content:item.body,sourceUrl:item.sourceUrl,availableAt:dateOnlyToTime(item.availableOn),publishedAt:dateOnlyToTime(item.publishedOn),rawMetadata:{externalId:item.externalId,providerVersion:item.providerVersion,availableOn:item.availableOn,publishedOn:item.publishedOn,contentHash} as Prisma.InputJsonValue}
+            actType:item.actType,title:item.title,content:item.body,sourceUrl:item.sourceUrl,availableAt:judicialCivilDateToUtc(item.availableOn),publishedAt:judicialCivilDateToUtc(item.publishedOn),rawMetadata:{externalId:item.externalId,providerVersion:item.providerVersion,availableOn:item.availableOn,publishedOn:item.publishedOn,contentHash} as Prisma.InputJsonValue}
         });publicationId=current.id;
       }
       await tx.judicialRecordVersion.create({data:{organizationId:job.organizationId,connectionId:job.connectionId,namespace:'DJEN',externalId:item.externalId,contentHash,providerVersion:item.providerVersion,publicationId,original:item.original as Prisma.InputJsonValue}});
